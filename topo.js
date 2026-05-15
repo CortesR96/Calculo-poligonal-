@@ -17,6 +17,55 @@ function norm360(a) { return ((a % 360) + 360) % 360; }
 function fmt(n, d = 4) { return (isNaN(n) || n === null) ? '—' : Number(n).toFixed(d); }
 function fmtDeg(n) { return fmt(n, 4) + '°'; }
 
+
+// ─── Conversión GMS ↔ Decimal ────────────────────
+function gmsToDecimal(g, m, s) {
+  g = parseFloat(g) || 0;
+  m = parseFloat(m) || 0;
+  s = parseFloat(s) || 0;
+  return g + m / 60 + s / 3600;
+}
+
+function decimalToGMS(dec) {
+  dec = ((dec % 360) + 360) % 360;
+  const g = Math.floor(dec);
+  const mFull = (dec - g) * 60;
+  const m = Math.floor(mFull);
+  const s = (mFull - m) * 60;
+  return { g, m, s: Math.round(s * 10) / 10 };
+}
+
+function fmtGMS(dec) {
+  const { g, m, s } = decimalToGMS(dec);
+  return `${g}° ${String(m).padStart(2,'0')}' ${String(s.toFixed(1)).padStart(4,'0')}"`;
+}
+
+function readGMS(idPrefix) {
+  const g = document.getElementById(idPrefix + '-g');
+  const m = document.getElementById(idPrefix + '-m');
+  const s = document.getElementById(idPrefix + '-s');
+  if (!g) return NaN;
+  return gmsToDecimal(g.value, m.value, s.value);
+}
+
+function writeGMS(idPrefix, decimal) {
+  const { g, m, s } = decimalToGMS(decimal);
+  const eg = document.getElementById(idPrefix + '-g');
+  const em = document.getElementById(idPrefix + '-m');
+  const es = document.getElementById(idPrefix + '-s');
+  if (!eg) return;
+  eg.value = g;
+  em.value = String(m).padStart(2, '0');
+  es.value = s.toFixed(1);
+}
+
+function clearGMS(idPrefix) {
+  ['g','m','s'].forEach(k => {
+    const el = document.getElementById(idPrefix + '-' + k);
+    if (el) el.value = '';
+  });
+}
+
 // ─── Fórmulas base ───────────────────────────────
 function calcDH(DI, ZC_deg) {
   return DI * Math.sin(toRad(ZC_deg));
@@ -258,7 +307,7 @@ function showScreen(id) {
 function initPoly() {
   const name = document.getElementById('poly-name-input').value.trim() || 'PG-01';
   const type = document.getElementById('poly-type').value;
-  const az = parseFloat(document.getElementById('az-inicial').value) || 0;
+  const az = readGMS('az-ini');
   const k = parseInt(document.getElementById('tolerancia-k').value) || 30;
 
   state.polyName = name;
@@ -318,9 +367,8 @@ function addPoint() {
   const from = document.getElementById('pt-from').value.trim();
   const to = document.getElementById('pt-to').value.trim();
   const DI = parseFloat(document.getElementById('pt-di').value);
-  const ZC = parseFloat(document.getElementById('pt-zc').value);
-  const beta = parseFloat(document.getElementById('pt-beta').value) || 0;
-  const delta = parseFloat(document.getElementById('pt-delta').value) || 0;
+  const ZC = readGMS('pt-zc');
+  const beta = readGMS('pt-beta');
   const hi = parseFloat(document.getElementById('pt-hi').value) || 1.5;
   const hr = parseFloat(document.getElementById('pt-hr').value) || 1.5;
 
@@ -328,7 +376,7 @@ function addPoint() {
   if (isNaN(DI) || DI <= 0) { showToast('⚠ Distancia inclinada inválida'); return; }
   if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo cenital debe estar entre 0° y 180°'); return; }
 
-  state.points.push({ from, to, DI, ZC, beta, delta, hi, hr });
+  state.points.push({ from, to, DI, ZC, beta, hi, hr });
   state.computed = null;
   state.adjustedCoords = null;
   saveState();
@@ -336,9 +384,8 @@ function addPoint() {
   // Limpiar campos de medición
   document.getElementById('pt-to').value = '';
   document.getElementById('pt-di').value = '';
-  document.getElementById('pt-zc').value = '';
-  document.getElementById('pt-beta').value = '';
-  document.getElementById('pt-delta').value = '';
+  clearGMS('pt-zc');
+  clearGMS('pt-beta');
 
   updateStationTitle();
   renderPointsList();
@@ -472,7 +519,7 @@ function renderResults() {
           ${c.results.map(r => `
             <tr>
               <td>${r.from}→${r.to}</td>
-              <td class="num">${fmt(r.az, 2)}</td>
+              <td class="num">${fmtGMS(r.az)}</td>
               <td class="num">${fmt(r.DH, 3)}</td>
               <td class="num">${fmt(r.dN, 3)}</td>
               <td class="num">${fmt(r.dE, 3)}</td>
@@ -626,36 +673,49 @@ function calcAmarre() {
 // ═══════════════════════════════════════════════════
 
 function saveStation() {
-  const N = parseFloat(document.getElementById('ir-n').value);
-  const E = parseFloat(document.getElementById('ir-e').value);
-  const Z = parseFloat(document.getElementById('ir-z').value);
+  const stName = document.getElementById('ir-st-name').value.trim() || 'ST';
+  const N  = parseFloat(document.getElementById('ir-n').value);
+  const E  = parseFloat(document.getElementById('ir-e').value);
+  const Z  = parseFloat(document.getElementById('ir-z').value);
   const hi = parseFloat(document.getElementById('ir-hi').value) || 1.5;
-  const az = parseFloat(document.getElementById('ir-az').value) || 0;
+
+  const visName = document.getElementById('ir-vis-name').value.trim() || 'VIS';
+  const visN = parseFloat(document.getElementById('ir-vis-n').value);
+  const visE = parseFloat(document.getElementById('ir-vis-e').value);
 
   if ([N, E, Z].some(isNaN)) { showToast('⚠ Ingresa las coordenadas de la estación'); return; }
+  if (isNaN(visN) || isNaN(visE)) { showToast('⚠ Ingresa N y E del punto visado'); return; }
 
-  state.irradStation = { N, E, Z, hi, azOrientacion: az };
+  // Azimut real estación → visado (orientación automática)
+  const dN = visN - N;
+  const dE = visE - E;
+  const azOrientacion = norm360(toDeg(Math.atan2(dE, dN)));
+
+  state.irradStation = { name: stName, N, E, Z, hi, azOrientacion, visName, visN, visE };
   saveState();
-  showToast('✓ Estación guardada');
+
+  // Mostrar azimut calculado
+  const disp = document.getElementById('ir-az-display');
+  disp.style.display = 'block';
+  disp.textContent = `✓ Orientación ${stName} → ${visName}: Az = ${fmt(azOrientacion, 4)}°`;
+
+  // Mostrar formulario de shots
+  document.getElementById('ir-shot-card').style.display = 'block';
+  showToast('✓ Estación guardada — azimut calculado');
+  document.getElementById('ir-pname').focus();
 }
 
 function addIrradPoint() {
   if (!state.irradStation) {
-    // Intentar leer los campos en tiempo real
-    const N = parseFloat(document.getElementById('ir-n').value);
-    const E = parseFloat(document.getElementById('ir-e').value);
-    const Z = parseFloat(document.getElementById('ir-z').value);
-    const hi = parseFloat(document.getElementById('ir-hi').value) || 1.5;
-    const az = parseFloat(document.getElementById('ir-az').value) || 0;
-    if ([N, E, Z].some(isNaN)) { showToast('⚠ Guarda primero la estación'); return; }
-    state.irradStation = { N, E, Z, hi, azOrientacion: az };
+    showToast('⚠ Guarda primero la estación y el punto visado');
+    return;
   }
 
   const pname = document.getElementById('ir-pname').value.trim() || ('PT-' + (state.irradPoints.length + 1));
   const desc = document.getElementById('ir-desc').value.trim();
   const DI = parseFloat(document.getElementById('ir-di').value);
-  const ZC = parseFloat(document.getElementById('ir-zc').value);
-  const beta = parseFloat(document.getElementById('ir-beta').value) || 0;
+  const ZC = readGMS('ir-zc');
+  const beta = readGMS('ir-beta');
   const hr = parseFloat(document.getElementById('ir-hr').value) || 1.5;
 
   if (isNaN(DI) || DI <= 0) { showToast('⚠ Distancia inclinada inválida'); return; }
@@ -668,8 +728,8 @@ function addIrradPoint() {
   document.getElementById('ir-pname').value = '';
   document.getElementById('ir-desc').value = '';
   document.getElementById('ir-di').value = '';
-  document.getElementById('ir-zc').value = '';
-  document.getElementById('ir-beta').value = '';
+  clearGMS('ir-zc');
+  clearGMS('ir-beta');
 
   renderIrradList();
   showToast(`✓ ${pname} calculado y guardado`);
@@ -703,7 +763,7 @@ function renderIrradList() {
             <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(p.Z, 3)}</div></div>
           </div>
           <div style="font-size:9px; color:var(--text3); margin-top:5px">
-            Az=${fmt(p.az, 2)}° &nbsp;|&nbsp; DH=${fmt(p.DH, 3)}m
+            Az=${fmtGMS(p.az)} &nbsp;|&nbsp; DH=${fmt(p.DH, 3)}m
           </div>
         </div>
       `).join('')}
@@ -828,7 +888,7 @@ updatePolyBadge();
 if (state.polyName) {
   document.getElementById('poly-name-input').value = state.polyName;
   document.getElementById('poly-type').value = state.polyType;
-  document.getElementById('az-inicial').value = state.azInicial;
+  writeGMS('az-ini', state.azInicial || 0);
   document.getElementById('tolerancia-k').value = state.toleranciaK;
 
   document.getElementById('poly-setup-card').style.display = 'none';
@@ -848,11 +908,22 @@ if (state.polyName) {
 }
 
 if (state.irradStation) {
-  document.getElementById('ir-n').value = state.irradStation.N;
-  document.getElementById('ir-e').value = state.irradStation.E;
-  document.getElementById('ir-z').value = state.irradStation.Z;
-  document.getElementById('ir-hi').value = state.irradStation.hi;
-  document.getElementById('ir-az').value = state.irradStation.azOrientacion;
+  const st = state.irradStation;
+  document.getElementById('ir-st-name').value = st.name || '';
+  document.getElementById('ir-n').value = st.N;
+  document.getElementById('ir-e').value = st.E;
+  document.getElementById('ir-z').value = st.Z;
+  document.getElementById('ir-hi').value = st.hi;
+  document.getElementById('ir-vis-name').value = st.visName || '';
+  document.getElementById('ir-vis-n').value = st.visN || '';
+  document.getElementById('ir-vis-e').value = st.visE || '';
+  const disp = document.getElementById('ir-az-display');
+  if (disp) {
+    disp.style.display = 'block';
+    disp.textContent = '✓ Orientación ' + st.name + ' → ' + st.visName + ': Az = ' + st.azOrientacion.toFixed(4) + '°';
+  }
+  const shotCard = document.getElementById('ir-shot-card');
+  if (shotCard) shotCard.style.display = 'block';
 }
 
 if (state.knownPoints) {
