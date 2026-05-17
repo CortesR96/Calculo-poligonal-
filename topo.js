@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════
 //  TopoField — Motor de cálculo topográfico
 //  Convenios:
-//   · Ángulo cenital ZC: 90° = horizontal, 0° = vertical arriba
+//   · Ángulo vertical ZC: 90° = horizontal, 0° = vertical arriba
 //   · DH = DI × sin(ZC)
 //   · ΔZ = DI × cos(ZC) + hi − hr
 //   · Az(B→C) = Az(A→B) + 180° − β   (ceros en A, lees β a C)
@@ -374,7 +374,7 @@ function addPoint() {
 
   if (!from || !to) { showToast('⚠ Ingresa los nombres DE y A'); return; }
   if (isNaN(DI) || DI <= 0) { showToast('⚠ Distancia inclinada inválida'); return; }
-  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo cenital debe estar entre 0° y 180°'); return; }
+  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo vertical debe estar entre 0° y 180°'); return; }
 
   state.points.push({ from, to, DI, ZC, beta, hi, hr });
   state.computed = null;
@@ -719,7 +719,7 @@ function addIrradPoint() {
   const hr = parseFloat(document.getElementById('ir-hr').value) || 1.5;
 
   if (isNaN(DI) || DI <= 0) { showToast('⚠ Distancia inclinada inválida'); return; }
-  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo cenital inválido'); return; }
+  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo vertical inválido'); return; }
 
   const result = calcularIrradiacion(state.irradStation, { DI, ZC, beta, hr });
   state.irradPoints.push({ name: pname, desc, DI, ZC, beta, hr, ...result });

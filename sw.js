@@ -1,12 +1,13 @@
 // TopoField Service Worker — Offline cache
-const CACHE = 'topofield-v3';
+const REPO = '/Calculo-poligonal';
+const CACHE = 'topofield-v4';
 const FILES = [
-  '/',
-  '/index.html',
-  '/topo.js',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  REPO + '/',
+  REPO + '/index.html',
+  REPO + '/topo.js',
+  REPO + '/manifest.json',
+  REPO + '/icon-192.png',
+  REPO + '/icon-512.png'
 ];
 
 self.addEventListener('install', e => {
@@ -33,7 +34,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(cache => cache.put(e.request, clone));
         }
         return response;
-      }).catch(() => caches.match('/index.html'));
+      }).catch(() => caches.match(REPO + '/index.html'));
     })
   );
 });

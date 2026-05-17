@@ -2,7 +2,7 @@
   "name": "TopoField — App Topográfica",
   "short_name": "TopoField",
   "description": "Cálculo de poligonales, amarre geodésico e irradiación topográfica",
-  "start_url": "/",
+  "start_url": "/Calculo-poligonal/",
   "display": "standalone",
   "background_color": "#0e1117",
   "theme_color": "#0e1117",
@@ -22,6 +22,10 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["utilities", "productivity"],
-  "screenshots": []
+  "categories": [
+    "utilities",
+    "productivity"
+  ],
+  "screenshots": [],
+  "scope": "/Calculo-poligonal/"
 }
