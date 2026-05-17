@@ -1,18 +1,23 @@
-// TopoField Service Worker — Offline cache
-const REPO = '/Calculo-poligonal';
-const CACHE = 'topofield-v4';
+// TopoField Service Worker — rutas relativas, funciona en cualquier repo
+const CACHE = 'topofield-v5';
+
+// Detectar la base del scope automáticamente
+const BASE = self.registration.scope;
+
 const FILES = [
-  REPO + '/',
-  REPO + '/index.html',
-  REPO + '/topo.js',
-  REPO + '/manifest.json',
-  REPO + '/icon-192.png',
-  REPO + '/icon-512.png'
+  BASE,
+  BASE + 'index.html',
+  BASE + 'topo.js',
+  BASE + 'manifest.json',
+  BASE + 'icon-192.png',
+  BASE + 'icon-512.png'
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(cache => cache.addAll(FILES))
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -34,7 +39,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(cache => cache.put(e.request, clone));
         }
         return response;
-      }).catch(() => caches.match(REPO + '/index.html'));
+      }).catch(() => caches.match(BASE + 'index.html'));
     })
   );
 });
