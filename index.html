@@ -448,25 +448,119 @@ body {
 
       <!-- Point input -->
       <div id="point-form" style="display:none">
+
+        <!-- Modal edicion -->
+        <div id="edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:100; overflow-y:auto; padding:16px;">
+          <div class="card" style="margin-top:20px">
+            <div class="card-title">✏ Editar estación</div>
+            <input type="hidden" id="edit-idx">
+            <div class="g2">
+              <div class="field"><label>ESTACIÓN (DE)</label><input type="text" id="edit-from" autocomplete="off"></div>
+              <div class="field"><label>PUNTO ADELANTE</label><input type="text" id="edit-to" autocomplete="off"></div>
+            </div>
+            <!-- ATRÁS -->
+            <div class="alert alert-info" style="margin-bottom:10px">📡 LECTURA ATRÁS (verificación)</div>
+            <div class="g2">
+              <div class="field">
+                <label>DI ATRÁS (m)</label>
+                <input type="number" id="edit-di-b" step="0.001" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label>AV ATRÁS</label>
+                <div class="gms-row">
+                  <input type="number" id="edit-zc-b-g" min="0" max="179" inputmode="numeric"><span>°</span>
+                  <input type="number" id="edit-zc-b-m" min="0" max="59" inputmode="numeric"><span>'</span>
+                  <input type="number" id="edit-zc-b-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+                </div>
+              </div>
+            </div>
+            <div class="g2">
+              <div class="field"><label>HR ATRÁS (m)</label><input type="number" id="edit-hr-b" step="0.001" inputmode="decimal"></div>
+              <div class="field"><label>HI instrumento (m)</label><input type="number" id="edit-hi" step="0.001" inputmode="decimal"></div>
+            </div>
+            <!-- ADELANTE -->
+            <div class="alert alert-info" style="margin-bottom:10px">🎯 LECTURA ADELANTE</div>
+            <div class="g2">
+              <div class="field">
+                <label>DI ADELANTE (m)</label>
+                <input type="number" id="edit-di" step="0.001" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label>AV ADELANTE</label>
+                <div class="gms-row">
+                  <input type="number" id="edit-zc-g" min="0" max="179" inputmode="numeric"><span>°</span>
+                  <input type="number" id="edit-zc-m" min="0" max="59" inputmode="numeric"><span>'</span>
+                  <input type="number" id="edit-zc-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+                </div>
+              </div>
+            </div>
+            <div class="g2">
+              <div class="field">
+                <label>AH ADELANTE</label>
+                <div class="gms-row">
+                  <input type="number" id="edit-beta-g" min="0" max="359" inputmode="numeric"><span>°</span>
+                  <input type="number" id="edit-beta-m" min="0" max="59" inputmode="numeric"><span>'</span>
+                  <input type="number" id="edit-beta-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+                </div>
+              </div>
+              <div class="field"><label>HR ADELANTE (m)</label><input type="number" id="edit-hr" step="0.001" inputmode="decimal"></div>
+            </div>
+            <div class="row-btns">
+              <button class="btn btn-primary" style="flex:2" onclick="saveEdit()">GUARDAR CAMBIOS</button>
+              <button class="btn btn-secondary btn-sm" onclick="closeEdit()">CANCELAR</button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
-          <div class="card-title" id="station-title">📍 Punto 1</div>
+          <div class="card-title" id="station-title">📍 Estación 1</div>
           <div class="g2">
             <div class="field">
               <label>ESTACIÓN (DE)</label>
               <input type="text" id="pt-from" placeholder="A" autocomplete="off">
             </div>
             <div class="field">
-              <label>PUNTO DESTINO (A)</label>
+              <label>PUNTO ADELANTE</label>
               <input type="text" id="pt-to" placeholder="B" autocomplete="off">
+            </div>
+          </div>
+
+          <!-- LECTURA ATRÁS -->
+          <div class="alert alert-info" style="margin-bottom:10px; margin-top:4px">📡 LECTURA ATRÁS — donde pusiste ceros</div>
+          <div class="g2">
+            <div class="field">
+              <label>DI ATRÁS (m)</label>
+              <input type="number" id="pt-di-b" placeholder="0.000" step="0.001" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label>AV ATRÁS</label>
+              <div class="gms-row">
+                <input type="number" id="pt-zc-b-g" placeholder="90" min="0" max="179" inputmode="numeric"><span>°</span>
+                <input type="number" id="pt-zc-b-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
+                <input type="number" id="pt-zc-b-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+              </div>
             </div>
           </div>
           <div class="g2">
             <div class="field">
-              <label>DIST. INCLINADA (m)</label>
+              <label>HR ATRÁS (m)</label>
+              <input type="number" id="pt-hr-b" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label>HI instrumento (m)</label>
+              <input type="number" id="pt-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
+            </div>
+          </div>
+
+          <!-- LECTURA ADELANTE -->
+          <div class="alert alert-info" style="margin-bottom:10px">🎯 LECTURA ADELANTE — punto nuevo</div>
+          <div class="g2">
+            <div class="field">
+              <label>DI ADELANTE (m)</label>
               <input type="number" id="pt-di" placeholder="0.000" step="0.001" inputmode="decimal">
             </div>
             <div class="field">
-              <label>ÁNGULO VERTICAL</label>
+              <label>AV ADELANTE</label>
               <div class="gms-row">
                 <input type="number" id="pt-zc-g" placeholder="90" min="0" max="179" inputmode="numeric"><span>°</span>
                 <input type="number" id="pt-zc-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
@@ -474,26 +568,23 @@ body {
               </div>
             </div>
           </div>
-          <div class="field">
-            <label>ÁNGULO HORIZONTAL</label>
-            <div class="gms-row">
-              <input type="number" id="pt-beta-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
-              <input type="number" id="pt-beta-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
-              <input type="number" id="pt-beta-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
-            </div>
-          </div>
           <div class="g2">
             <div class="field">
-              <label>HI — altura instrumento (m)</label>
-              <input type="number" id="pt-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
+              <label>AH ADELANTE</label>
+              <div class="gms-row">
+                <input type="number" id="pt-beta-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
+                <input type="number" id="pt-beta-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
+                <input type="number" id="pt-beta-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+              </div>
             </div>
             <div class="field">
-              <label>HR — altura bastón (m)</label>
+              <label>HR ADELANTE (m)</label>
               <input type="number" id="pt-hr" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
             </div>
           </div>
+
           <div class="row-btns">
-            <button class="btn btn-primary" style="flex:2" onclick="addPoint()">+ AGREGAR</button>
+            <button class="btn btn-primary" style="flex:2" onclick="addPoint()">+ AGREGAR ESTACIÓN</button>
             <button class="btn btn-warn btn-sm" onclick="closePoly()">CALCULAR</button>
             <button class="btn btn-secondary btn-sm" onclick="resetSetup()">↺</button>
           </div>
@@ -501,7 +592,7 @@ body {
 
         <!-- Points list -->
         <div id="points-section" style="display:none">
-          <div class="section-title">PUNTOS INGRESADOS</div>
+          <div class="section-title">ESTACIONES INGRESADAS</div>
           <div class="card" style="padding:8px 14px">
             <div id="points-list"></div>
           </div>

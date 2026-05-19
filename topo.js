@@ -354,7 +354,7 @@ function updatePolyBadge() {
 function updateStationTitle() {
   const n = state.points.length;
   const title = document.getElementById('station-title');
-  title.textContent = `📍 Punto ${n + 1}`;
+  title.textContent = `📍 Estación ${n + 1}`;
 
   // Autocompletar "DE" con el último destino
   if (n > 0) {
@@ -365,38 +365,87 @@ function updateStationTitle() {
 
 function addPoint() {
   const from = document.getElementById('pt-from').value.trim();
-  const to = document.getElementById('pt-to').value.trim();
-  const DI = parseFloat(document.getElementById('pt-di').value);
-  const ZC = readGMS('pt-zc');
+  const to   = document.getElementById('pt-to').value.trim();
+
+  if (!from || !to) { showToast('⚠ Ingresa los nombres DE y punto adelante'); return; }
+
+  // ── Lectura ATRÁS ──
+  const DI_b = parseFloat(document.getElementById('pt-di-b').value);
+  const ZC_b = readGMS('pt-zc-b');
+  const hr_b = parseFloat(document.getElementById('pt-hr-b').value) || 1.5;
+
+  // ── Lectura ADELANTE ──
+  const DI   = parseFloat(document.getElementById('pt-di').value);
+  const ZC   = readGMS('pt-zc');
   const beta = readGMS('pt-beta');
-  const hi = parseFloat(document.getElementById('pt-hi').value) || 1.5;
-  const hr = parseFloat(document.getElementById('pt-hr').value) || 1.5;
+  const hi   = parseFloat(document.getElementById('pt-hi').value) || 1.5;
+  const hr   = parseFloat(document.getElementById('pt-hr').value) || 1.5;
 
-  if (!from || !to) { showToast('⚠ Ingresa los nombres DE y A'); return; }
-  if (isNaN(DI) || DI <= 0) { showToast('⚠ Distancia inclinada inválida'); return; }
-  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo vertical debe estar entre 0° y 180°'); return; }
+  // Validaciones adelante
+  if (isNaN(DI) || DI <= 0) { showToast('⚠ DI adelante inválida'); return; }
+  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo vertical adelante inválido (0°-180°)'); return; }
 
-  state.points.push({ from, to, DI, ZC, beta, hi, hr });
+  // Validar AH atrás — siempre debe ser 0°00'00"
+  const ah_b_deg = readGMS('pt-zc-b'); // AH atrás no existe como campo, se asume 0
+  // Verificar que no pusieron nada raro en AH atrás
+  // (el campo AH atrás no existe, se omite — la lectura atrás solo tiene ZV y DI)
+
+  // Detectar cierre: si el punto adelante = primer punto de la poligonal
+  const esCierre = state.points.length >= 2 &&
+    to.trim().toUpperCase() === state.points[0].from.trim().toUpperCase();
+
+  // Verificación distancia ida vs vuelta (si hay punto anterior)
+  let diffDH = null, diffDZ = null;
+  if (state.points.length > 0 && !isNaN(DI_b) && DI_b > 0 && !isNaN(ZC_b) && ZC_b > 0) {
+    const prev = state.points[state.points.length - 1];
+    const DH_prev_fwd = calcDH(prev.DI, prev.ZC);
+    const DH_back     = calcDH(DI_b, ZC_b);
+    const DZ_prev_fwd = calcDZ(prev.DI, prev.ZC, prev.hi, prev.hr);
+    const DZ_back     = calcDZ(DI_b, ZC_b, hi, hr_b);
+    diffDH = Math.abs(DH_prev_fwd - DH_back);
+    diffDZ = Math.abs(DZ_prev_fwd + DZ_back); // suma porque sentidos opuestos
+  }
+
+  state.points.push({ from, to, DI, ZC, beta, hi, hr, DI_b, ZC_b, hr_b, diffDH, diffDZ, esCierre });
   state.computed = null;
   state.adjustedCoords = null;
   saveState();
 
-  // Limpiar campos de medición
+  // Limpiar campos
   document.getElementById('pt-to').value = '';
+  document.getElementById('pt-di-b').value = '';
+  clearGMS('pt-zc-b');
+  document.getElementById('pt-hr-b').value = '1.500';
   document.getElementById('pt-di').value = '';
   clearGMS('pt-zc');
   clearGMS('pt-beta');
+  document.getElementById('pt-hr').value = '1.500';
 
   updateStationTitle();
   renderPointsList();
-  showToast(`✓ Punto ${from}→${to} agregado`);
 
-  // Scroll al form
-  document.getElementById('pt-to').focus();
+  // Mostrar diferencias si las hay
+  if (diffDH !== null) {
+    const clrDH = diffDH > 0.05 ? '⚠' : '✓';
+    const clrDZ = diffDZ > 0.05 ? '⚠' : '✓';
+    showToast(`${clrDH} ΔDH=${fmt(diffDH,3)}m  ${clrDZ} ΔCota=${fmt(diffDZ,3)}m`, 4000);
+  } else {
+    showToast(`✓ Estación ${from}→${to} agregada`);
+  }
+
+  // Si es cierre, calcular automáticamente
+  if (esCierre) {
+    setTimeout(() => {
+      showToast('🔒 Cierre detectado — calculando poligonal...', 2500);
+      setTimeout(closePoly, 1500);
+    }, 500);
+  } else {
+    document.getElementById('pt-to').focus();
+  }
 }
 
 function removePoint(i) {
-  if (!confirm(`¿Eliminar punto ${state.points[i].from}→${state.points[i].to}?`)) return;
+  if (!confirm(`¿Eliminar estación ${state.points[i].from}→${state.points[i].to}?`)) return;
   state.points.splice(i, 1);
   state.computed = null;
   state.adjustedCoords = null;
@@ -404,6 +453,67 @@ function removePoint(i) {
   renderPointsList();
   updateStationTitle();
   document.getElementById('results-section').style.display = 'none';
+}
+
+function openEdit(i) {
+  const p = state.points[i];
+  document.getElementById('edit-idx').value = i;
+  document.getElementById('edit-from').value = p.from;
+  document.getElementById('edit-to').value = p.to;
+  document.getElementById('edit-hi').value = p.hi;
+  // Atrás
+  document.getElementById('edit-di-b').value = p.DI_b || '';
+  if (p.ZC_b) writeGMS('edit-zc-b', p.ZC_b); else clearGMS('edit-zc-b');
+  document.getElementById('edit-hr-b').value = p.hr_b || 1.5;
+  // Adelante
+  document.getElementById('edit-di').value = p.DI;
+  writeGMS('edit-zc', p.ZC);
+  writeGMS('edit-beta', p.beta);
+  document.getElementById('edit-hr').value = p.hr;
+  document.getElementById('edit-modal').style.display = 'block';
+}
+
+function closeEdit() {
+  document.getElementById('edit-modal').style.display = 'none';
+}
+
+function saveEdit() {
+  const i    = parseInt(document.getElementById('edit-idx').value);
+  const from = document.getElementById('edit-from').value.trim();
+  const to   = document.getElementById('edit-to').value.trim();
+  const hi   = parseFloat(document.getElementById('edit-hi').value) || 1.5;
+  const DI_b = parseFloat(document.getElementById('edit-di-b').value);
+  const ZC_b = readGMS('edit-zc-b');
+  const hr_b = parseFloat(document.getElementById('edit-hr-b').value) || 1.5;
+  const DI   = parseFloat(document.getElementById('edit-di').value);
+  const ZC   = readGMS('edit-zc');
+  const beta = readGMS('edit-beta');
+  const hr   = parseFloat(document.getElementById('edit-hr').value) || 1.5;
+
+  if (!from || !to) { showToast('⚠ Nombre DE y adelante requeridos'); return; }
+  if (isNaN(DI) || DI <= 0) { showToast('⚠ DI adelante inválida'); return; }
+  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ AV adelante inválido'); return; }
+
+  // Recalcular verificación
+  let diffDH = null, diffDZ = null;
+  if (i > 0 && !isNaN(DI_b) && DI_b > 0 && !isNaN(ZC_b) && ZC_b > 0) {
+    const prev = state.points[i - 1];
+    const DH_prev_fwd = calcDH(prev.DI, prev.ZC);
+    const DH_back     = calcDH(DI_b, ZC_b);
+    const DZ_prev_fwd = calcDZ(prev.DI, prev.ZC, prev.hi, prev.hr);
+    const DZ_back     = calcDZ(DI_b, ZC_b, hi, hr_b);
+    diffDH = Math.abs(DH_prev_fwd - DH_back);
+    diffDZ = Math.abs(DZ_prev_fwd + DZ_back);
+  }
+
+  const esCierre = i >= 2 && to.trim().toUpperCase() === state.points[0].from.trim().toUpperCase();
+  state.points[i] = { from, to, DI, ZC, beta, hi, hr, DI_b, ZC_b, hr_b, diffDH, diffDZ, esCierre };
+  state.computed = null;
+  state.adjustedCoords = null;
+  saveState();
+  closeEdit();
+  renderPointsList();
+  showToast('✓ Estación actualizada');
 }
 
 function closePoly() {
@@ -430,19 +540,35 @@ function renderPointsList() {
   const list = document.getElementById('points-list');
   if (state.points.length === 0) { section.style.display = 'none'; return; }
   section.style.display = 'block';
-  list.innerHTML = state.points.map((p, i) => `
+  list.innerHTML = state.points.map((p, i) => {
+    // Semáforo de verificación
+    let verif = '';
+    if (p.diffDH !== null && p.diffDH !== undefined) {
+      const okDH = p.diffDH <= 0.05;
+      const okDZ = p.diffDZ <= 0.05;
+      verif = `<div class="pt-sub" style="color:${okDH && okDZ ? 'var(--success)' : 'var(--warn)'}">
+        ${okDH ? '✓' : '⚠'} ΔDH=${fmt(p.diffDH,3)}m &nbsp;|&nbsp; ${okDZ ? '✓' : '⚠'} ΔCota=${fmt(p.diffDZ,3)}m
+      </div>`;
+    }
+    const cierreTag = p.esCierre ? `<span style="font-size:9px;color:var(--success);margin-left:6px">🔒CIERRE</span>` : '';
+    return `
     <div class="pt-item">
       <div class="pt-num">${i + 1}</div>
       <div style="flex:1; min-width:0">
-        <div class="pt-name">${p.from} → ${p.to}</div>
+        <div class="pt-name">${p.from} → ${p.to}${cierreTag}</div>
         <div class="pt-sub">
-          DI=${fmt(p.DI, 3)}m &nbsp;|&nbsp; ZC=${fmtDeg(p.ZC)}<br>
-          β=${fmtDeg(p.beta)} &nbsp;|&nbsp; hi=${fmt(p.hi, 3)} &nbsp;|&nbsp; hr=${fmt(p.hr, 3)}
+          🎯 DI=${fmt(p.DI,3)}m &nbsp;|&nbsp; AV=${fmtGMS(p.ZC)} &nbsp;|&nbsp; AH=${fmtGMS(p.beta)}<br>
+          hi=${fmt(p.hi,3)}m &nbsp;|&nbsp; hr=${fmt(p.hr,3)}m
         </div>
+        ${p.DI_b ? `<div class="pt-sub" style="color:var(--text3)">📡 DI_atrás=${fmt(p.DI_b,3)}m &nbsp;|&nbsp; AV=${fmtGMS(p.ZC_b)}</div>` : ''}
+        ${verif}
       </div>
-      <button class="del-btn" onclick="removePoint(${i})" title="Eliminar">✕</button>
-    </div>
-  `).join('');
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        <button class="del-btn" style="color:var(--accent);font-size:13px" onclick="openEdit(${i})" title="Editar">✏</button>
+        <button class="del-btn" onclick="removePoint(${i})" title="Eliminar">✕</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderResults() {
