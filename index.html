@@ -172,9 +172,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
     <div>
       <div class="logo">Poligonal <span>CR</span></div>
     </div>
-    <div class="header-right">
-      <div class="proj-badge" id="proj-badge">Selecciona un proyecto</div>
-      <div class="offline-badge">● OFFLINE READY</div>
+    <div class="header-right" style="display:flex;flex-direction:row;align-items:center;gap:8px">
+      <button class="back-btn" id="btn-volver" style="display:none" onclick="volverAProyectos()">← Lista</button>
+      <div>
+        <div class="proj-badge" id="proj-badge">Selecciona un proyecto</div>
+        <div class="offline-badge">● OFFLINE READY</div>
+      </div>
     </div>
   </div>
 

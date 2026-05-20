@@ -187,9 +187,11 @@ function showScreen(id){
   if(id==='irradia') renderIrradList();
   if(id==='proyectos'){
     document.getElementById('main-nav').style.display='none';
+    document.getElementById('btn-volver').style.display='none';
     renderProyectos();
   } else {
     document.getElementById('main-nav').style.display='flex';
+    document.getElementById('btn-volver').style.display='inline-block';
   }
 }
 
@@ -285,6 +287,7 @@ function cargarUIProyecto(){
   if(!proyecto) return;
   // Badge
   document.getElementById('proj-badge').textContent=proyecto.nombre+' ('+proyecto.tipo+')';
+  document.getElementById('btn-volver').style.display='inline-block';
   // Setup form
   document.getElementById('poly-name-input').value=proyecto.nombre;
   document.getElementById('poly-type').value=proyecto.tipo;
@@ -582,22 +585,24 @@ function renderResults(){
 
   const adjSection=document.getElementById('adjustment-section');
   const adjContent=document.getElementById('adjustment-content');
-  if(c.calidadLineal==='mala'||c.calidadLineal==='regular'){
-    adjSection.style.display='block';
-    const bow=ajustarBowditch(c), tra=ajustarTransito(c);
-    const pB=precisionTrasAjuste(bow,c.totalLen), pT=precisionTrasAjuste(tra,c.totalLen);
-    adjContent.innerHTML=`
-      <div class="alert alert-warn">Precisión insuficiente. Aplica un ajuste para compensar el error de cierre.</div>
-      <div class="stat-row"><span class="stat-label">Bowditch (proporcional a longitud)</span><span class="stat-val">1/${pB>99999?'∞':pB.toLocaleString()}</span></div>
-      <div class="stat-row" style="margin-bottom:12px"><span class="stat-label">Tránsito (proporcional a proyección)</span><span class="stat-val">1/${pT>99999?'∞':pT.toLocaleString()}</span></div>
-      <div class="row-btns">
-        <button class="btn btn-success btn-sm" onclick="applyAdjustment('bowditch')">APLICAR BOWDITCH</button>
-        <button class="btn btn-warn btn-sm" onclick="applyAdjustment('transito')">APLICAR TRÁNSITO</button>
-      </div>`;
-  } else {
-    adjSection.style.display='none';
-    applyAdjustmentData('bowditch',ajustarBowditch(c));
-  }
+  // Siempre mostrar opciones de ajuste
+  adjSection.style.display='block';
+  const bow=ajustarBowditch(c), tra=ajustarTransito(c);
+  const pB=precisionTrasAjuste(bow,c.totalLen), pT=precisionTrasAjuste(tra,c.totalLen);
+  const alertClass=c.calidadLineal==='mala'||c.calidadLineal==='regular'?'alert-warn':'alert-info';
+  const alertMsg=c.calidadLineal==='mala'||c.calidadLineal==='regular'
+    ?'Precisión insuficiente. Aplica un ajuste para compensar el error de cierre.'
+    :'Precisión aceptable. Puedes aplicar un ajuste para mayor exactitud.';
+  adjContent.innerHTML=`
+    <div class="alert ${alertClass}">${alertMsg}</div>
+    <div class="stat-row"><span class="stat-label">Bowditch (proporcional a longitud)</span><span class="stat-val">1/${pB>99999?'∞':pB.toLocaleString()}</span></div>
+    <div class="stat-row" style="margin-bottom:12px"><span class="stat-label">Tránsito (proporcional a proyección)</span><span class="stat-val">1/${pT>99999?'∞':pT.toLocaleString()}</span></div>
+    <div class="row-btns">
+      <button class="btn btn-success btn-sm" onclick="applyAdjustment('bowditch')">APLICAR BOWDITCH</button>
+      <button class="btn btn-warn btn-sm" onclick="applyAdjustment('transito')">APLICAR TRÁNSITO</button>
+    </div>`;
+  // Si no hay ajuste previo, aplicar Bowditch por defecto
+  if(!proyecto.adjustedCoords) applyAdjustmentData('bowditch',bow);
 }
 
 function applyAdjustment(method){
