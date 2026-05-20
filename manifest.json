@@ -1,7 +1,7 @@
 {
-  "name": "TopoField — App Topográfica",
-  "short_name": "TopoField",
-  "description": "Cálculo de poligonales, amarre geodésico e irradiación topográfica",
+  "name": "Poligonal CR",
+  "short_name": "Poligonal CR",
+  "description": "Cálculo de poligonales topográficas — Colombia",
   "start_url": "/Calculo-poligonal-/",
   "scope": "/Calculo-poligonal-/",
   "display": "standalone",

@@ -6,383 +6,162 @@
 <meta name="theme-color" content="#0e1117">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TopoField">
-<meta name="description" content="App topográfica para cálculo de poligonales, amarre geodésico e irradiación">
+<meta name="apple-mobile-web-app-title" content="Poligonal CR">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
-<title>TopoField</title>
+<title>Poligonal CR</title>
 <style>
 :root {
-  --bg: #0e1117;
-  --bg2: #161b25;
-  --bg3: #1e2535;
-  --border: rgba(99,179,237,0.15);
-  --border2: rgba(99,179,237,0.3);
-  --accent: #4A9EFF;
-  --accent2: #2dd4bf;
-  --text: #e2e8f0;
-  --text2: #94a3b8;
-  --text3: #64748b;
-  --danger: #f87171;
-  --warn: #fbbf24;
-  --success: #34d399;
-  --card: #161b25;
-  --input-bg: #0e1117;
-  --radius: 10px;
-  --radius-sm: 6px;
-  --font: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-  --nav-h: 60px;
-  --header-h: 52px;
+  --bg:#0e1117; --bg2:#161b25; --bg3:#1e2535;
+  --border:rgba(99,179,237,0.15); --border2:rgba(99,179,237,0.3);
+  --accent:#4A9EFF; --accent2:#2dd4bf;
+  --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
+  --danger:#f87171; --warn:#fbbf24; --success:#34d399;
+  --radius:10px; --radius-sm:6px;
+  --font:'SF Mono','Fira Code','Cascadia Code',monospace;
+  --nav-h:60px; --header-h:52px;
 }
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-html, body { height: 100%; overflow: hidden; }
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 13px;
-}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px}
 
-/* ── LAYOUT ── */
-.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 
-.header {
-  background: var(--bg2);
-  border-bottom: 1px solid var(--border);
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  height: var(--header-h);
-}
-.logo { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
-.logo span { color: var(--accent2); }
-.header-right { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.poly-badge {
-  font-size: 10px;
-  color: var(--accent2);
-  background: rgba(45,212,191,0.1);
-  border: 1px solid rgba(45,212,191,0.25);
-  border-radius: 4px;
-  padding: 2px 8px;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.offline-badge {
-  font-size: 9px;
-  color: var(--text3);
-}
+/* HEADER */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;height:var(--header-h)}
+.logo{font-size:18px;font-weight:700;color:var(--accent);letter-spacing:-0.5px}
+.logo span{color:var(--accent2)}
+.header-right{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.proj-badge{font-size:10px;color:var(--accent2);background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.25);border-radius:4px;padding:2px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.offline-badge{font-size:9px;color:var(--text3)}
+.back-btn{background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-family:var(--font);font-size:11px;padding:4px 10px;cursor:pointer}
+.back-btn:active{border-color:var(--accent);color:var(--accent)}
 
-/* ── NAV ── */
-.nav {
-  display: flex;
-  background: var(--bg2);
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-  height: var(--nav-h);
-  order: 3;
-}
-.nav-btn {
-  flex: 1;
-  padding: 8px 2px;
-  background: none;
-  border: none;
-  border-top: 2px solid transparent;
-  color: var(--text3);
-  font-family: var(--font);
-  font-size: 9px;
-  cursor: pointer;
-  transition: all 0.15s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  letter-spacing: 0.3px;
-}
-.nav-btn.active { color: var(--accent); border-top-color: var(--accent); }
-.nav-icon { font-size: 20px; }
+/* NAV */
+.nav{display:flex;background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;height:var(--nav-h);order:3}
+.nav-btn{flex:1;padding:8px 2px;background:none;border:none;border-top:2px solid transparent;color:var(--text3);font-family:var(--font);font-size:9px;cursor:pointer;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;gap:4px;letter-spacing:0.3px}
+.nav-btn.active{color:var(--accent);border-top-color:var(--accent)}
+.nav-icon{font-size:20px}
 
-/* ── SCREENS ── */
-.screens { flex: 1; overflow: hidden; order: 2; }
-.screen { display: none; height: 100%; overflow-y: auto; padding: 14px 14px 20px; }
-.screen.active { display: block; }
+/* SCREENS */
+.screens{flex:1;overflow:hidden;order:2}
+.screen{display:none;height:100%;overflow-y:auto;padding:14px 14px 20px}
+.screen.active{display:block}
 
-/* ── CARDS ── */
-.card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 12px;
-}
-.card-title {
-  font-size: 10px;
-  color: var(--accent);
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card-title{font-size:10px;color:var(--accent);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:12px;font-weight:600}
 
-/* ── INPUTS ── */
-.field { margin-bottom: 10px; }
-.field label {
-  display: block;
-  font-size: 10px;
-  color: var(--text2);
-  margin-bottom: 4px;
-  letter-spacing: 0.3px;
-}
-.field input,
-.field select {
-  width: 100%;
-  background: var(--input-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 9px 10px;
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 14px;
-  outline: none;
-  transition: border 0.15s;
-  -webkit-appearance: none;
-}
-.field input:focus { border-color: var(--accent); }
-.field select { background-image: none; }
-.field select option { background: var(--bg2); }
+/* PROYECTO CARD */
+.proj-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;cursor:pointer;transition:all 0.15s;position:relative}
+.proj-card:active{border-color:var(--accent);background:var(--bg3)}
+.proj-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px}
+.proj-card-name{font-size:15px;font-weight:700;color:var(--text)}
+.proj-card-type{font-size:10px;color:var(--text3);margin-top:2px}
+.proj-card-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.proj-stat{background:var(--bg3);border-radius:var(--radius-sm);padding:6px;text-align:center}
+.proj-stat .lbl{font-size:9px;color:var(--text3);margin-bottom:2px}
+.proj-stat .val{font-size:12px;font-weight:600;color:var(--accent2)}
+.proj-card-footer{display:flex;align-items:center;justify-content:space-between}
+.proj-status{font-size:10px;padding:2px 8px;border-radius:4px}
+.status-prog{background:rgba(251,191,36,0.12);color:var(--warn);border:1px solid rgba(251,191,36,0.25)}
+.status-done{background:rgba(52,211,153,0.12);color:var(--success);border:1px solid rgba(52,211,153,0.25)}
+.proj-date{font-size:9px;color:var(--text3)}
+.proj-del-btn{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.25);color:var(--danger);border-radius:var(--radius-sm);padding:4px 10px;font-size:11px;cursor:pointer;font-family:var(--font)}
 
-/* ── GRIDS ── */
-.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.g13 { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
-.span2 { grid-column: span 2; }
-.span3 { grid-column: span 3; }
+/* INPUTS */
+.field{margin-bottom:10px}
+.field label{display:block;font-size:10px;color:var(--text2);margin-bottom:4px;letter-spacing:0.3px}
+.field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 10px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;transition:border 0.15s;-webkit-appearance:none}
+.field input:focus{border-color:var(--accent)}
+.field select option{background:var(--bg2)}
 
-/* ── BUTTONS ── */
-.btn {
-  width: 100%;
-  padding: 11px;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s;
-  letter-spacing: 0.4px;
-}
-.btn-primary { background: var(--accent); color: #000; }
-.btn-primary:active { opacity: 0.8; transform: scale(0.98); }
-.btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
-.btn-secondary:active { border-color: var(--accent); }
-.btn-danger { background: rgba(248,113,113,0.12); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
-.btn-success { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid rgba(52,211,153,0.3); }
-.btn-warn { background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
-.btn-sm { padding: 7px 12px; font-size: 11px; width: auto; }
-.row-btns { display: flex; gap: 8px; margin-top: 10px; }
+/* GRIDS */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
-/* ── TABLE ── */
-.tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
-.tbl th {
-  color: var(--text3);
-  font-weight: 500;
-  padding: 6px 6px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-size: 9px;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-}
-.tbl td { padding: 6px 6px; border-bottom: 1px solid rgba(99,179,237,0.05); }
-.tbl tr:last-child td { border-bottom: none; }
-.num { color: var(--accent2); }
-.del-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 16px; padding: 0 4px; }
+/* BUTTONS */
+.btn{width:100%;padding:11px;border:none;border-radius:var(--radius-sm);font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;letter-spacing:0.4px}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:active{opacity:0.8;transform:scale(0.98)}
+.btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border)}
+.btn-danger{background:rgba(248,113,113,0.12);color:var(--danger);border:1px solid rgba(248,113,113,0.3)}
+.btn-success{background:rgba(52,211,153,0.12);color:var(--success);border:1px solid rgba(52,211,153,0.3)}
+.btn-warn{background:rgba(251,191,36,0.12);color:var(--warn);border:1px solid rgba(251,191,36,0.3)}
+.btn-sm{padding:7px 12px;font-size:11px;width:auto}
+.row-btns{display:flex;gap:8px;margin-top:10px}
 
-/* ── PRECISION ── */
-.prec-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 12px;
-}
-.prec-good { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid rgba(52,211,153,0.3); }
-.prec-warn { background: rgba(251,191,36,0.12); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
-.prec-bad { background: rgba(248,113,113,0.12); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{color:var(--text3);font-weight:500;padding:6px;border-bottom:1px solid var(--border);text-align:left;font-size:9px;white-space:nowrap}
+.tbl td{padding:6px;border-bottom:1px solid rgba(99,179,237,0.05)}
+.tbl tr:last-child td{border-bottom:none}
+.num{color:var(--accent2)}
+.del-btn{background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:0 4px}
 
-/* ── STAT ROW ── */
-.stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 7px 0;
-  border-bottom: 1px solid rgba(99,179,237,0.05);
-}
-.stat-row:last-child { border-bottom: none; }
-.stat-label { color: var(--text2); font-size: 11px; }
-.stat-val { color: var(--accent2); font-weight: 600; font-size: 12px; }
+/* PRECISION */
+.prec-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:700;margin-bottom:12px}
+.prec-good{background:rgba(52,211,153,0.12);color:var(--success);border:1px solid rgba(52,211,153,0.3)}
+.prec-warn{background:rgba(251,191,36,0.12);color:var(--warn);border:1px solid rgba(251,191,36,0.3)}
+.prec-bad{background:rgba(248,113,113,0.12);color:var(--danger);border:1px solid rgba(248,113,113,0.3)}
 
-/* ── ALERTS ── */
-.alert {
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 11px;
-  margin-bottom: 10px;
-  line-height: 1.6;
-}
-.alert-info { background: rgba(74,158,255,0.08); border: 1px solid rgba(74,158,255,0.25); color: #93c5fd; }
-.alert-warn { background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25); color: var(--warn); }
-.alert-success { background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); color: var(--success); }
-.alert-danger { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); color: var(--danger); }
+/* STAT ROW */
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(99,179,237,0.05)}
+.stat-row:last-child{border-bottom:none}
+.stat-label{color:var(--text2);font-size:11px}
+.stat-val{color:var(--accent2);font-weight:600;font-size:12px}
 
-/* ── POINT LIST ── */
-.pt-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 9px 0;
-  border-bottom: 1px solid rgba(99,179,237,0.06);
-}
-.pt-item:last-child { border-bottom: none; }
-.pt-num {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: var(--accent);
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.pt-name { font-weight: 600; font-size: 12px; color: var(--text); }
-.pt-sub { font-size: 10px; color: var(--text3); margin-top: 2px; line-height: 1.5; }
+/* ALERTS */
+.alert{padding:10px 12px;border-radius:var(--radius-sm);font-size:11px;margin-bottom:10px;line-height:1.6}
+.alert-info{background:rgba(74,158,255,0.08);border:1px solid rgba(74,158,255,0.25);color:#93c5fd}
+.alert-warn{background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);color:var(--warn)}
+.alert-success{background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.25);color:var(--success)}
+.alert-danger{background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);color:var(--danger)}
 
-/* ── COORD BOX ── */
-.coord-box {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
-  margin-bottom: 8px;
-}
-.coord-name { font-size: 12px; font-weight: 600; color: var(--accent); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
-.coord-vals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.coord-val { text-align: center; }
-.coord-val .lbl { font-size: 9px; color: var(--text3); margin-bottom: 2px; }
-.coord-val .num { font-size: 12px; color: var(--accent2); font-weight: 600; }
+/* POINT LIST */
+.pt-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid rgba(99,179,237,0.06)}
+.pt-item:last-child{border-bottom:none}
+.pt-num{width:26px;height:26px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--accent);flex-shrink:0;margin-top:1px}
+.pt-name{font-weight:600;font-size:12px;color:var(--text)}
+.pt-sub{font-size:10px;color:var(--text3);margin-top:2px;line-height:1.5}
 
-/* ── GMS INPUT ── */
-.gms-row {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  background: var(--input-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  transition: border 0.15s;
-}
-.gms-row:focus-within { border-color: var(--accent); }
-.gms-row input {
-  background: transparent;
-  border: none;
-  padding: 5px 2px;
-  color: var(--text);
-  font-family: var(--font);
-  font-size: 14px;
-  outline: none;
-  min-width: 0;
-  text-align: center;
-}
-.gms-row input::-webkit-outer-spin-button,
-.gms-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.gms-row input { flex: 1; min-width: 28px; max-width: 52px; }
-.gms-row span { color: var(--text3); font-size: 12px; flex-shrink: 0; }
+/* COORD BOX */
+.coord-box{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px}
+.coord-name{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.coord-vals{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.coord-val{text-align:center}
+.coord-val .lbl{font-size:9px;color:var(--text3);margin-bottom:2px}
+.coord-val .num{font-size:12px;color:var(--accent2);font-weight:600}
 
-/* ── SECTION TITLE ── */
-.section-title {
-  font-size: 9px;
-  color: var(--text3);
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  margin: 14px 0 8px;
-}
+/* GMS */
+.gms-row{display:flex;align-items:center;gap:3px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px;transition:border 0.15s}
+.gms-row:focus-within{border-color:var(--accent)}
+.gms-row input{background:transparent;border:none;padding:5px 2px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;min-width:0;text-align:center;flex:1;min-width:28px;max-width:52px}
+.gms-row input::-webkit-outer-spin-button,.gms-row input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.gms-row span{color:var(--text3);font-size:12px;flex-shrink:0}
 
-/* ── MISC ── */
-.sep { height: 1px; background: var(--border); margin: 12px 0; }
-.mt8 { margin-top: 8px; }
-.mt12 { margin-top: 12px; }
-.tc { text-align: center; }
-.empty-state { text-align: center; padding: 40px 20px; color: var(--text3); font-size: 12px; }
+/* MODAL */
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;overflow-y:auto;padding:16px}
+.modal.open{display:block}
+.modal-inner{margin-top:12px}
 
-/* ── SCROLLBAR ── */
-::-webkit-scrollbar { width: 3px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+/* MISC */
+.sep{height:1px;background:var(--border);margin:12px 0}
+.mt8{margin-top:8px}
+.mt12{margin-top:12px}
+.tc{text-align:center}
+.section-title{font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:14px 0 8px}
+.empty-state{text-align:center;padding:50px 20px;color:var(--text3);font-size:12px;line-height:2}
+.empty-icon{font-size:48px;margin-bottom:12px;opacity:0.25}
 
-/* ── TOAST ── */
-.toast {
-  position: fixed;
-  bottom: calc(var(--nav-h) + 12px);
-  left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  color: var(--text);
-  padding: 10px 18px;
-  border-radius: 20px;
-  font-size: 12px;
-  opacity: 0;
-  transition: all 0.25s;
-  z-index: 1000;
-  white-space: nowrap;
-  pointer-events: none;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* SCROLLBAR */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-/* ── INSTALL BANNER ── */
-.install-banner {
-  background: linear-gradient(135deg, rgba(74,158,255,0.12), rgba(45,212,191,0.08));
-  border: 1px solid rgba(74,158,255,0.25);
-  border-radius: var(--radius);
-  padding: 12px 14px;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.install-banner-text { flex: 1; font-size: 11px; color: var(--text2); line-height: 1.5; }
-.install-banner-text strong { color: var(--accent); }
-
-/* ── TABS ── */
-.tab-row { display: flex; gap: 6px; margin-bottom: 12px; }
-.tab {
-  flex: 1;
-  padding: 7px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text3);
-  font-family: var(--font);
-  font-size: 10px;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.15s;
-}
-.tab.active { background: rgba(74,158,255,0.12); border-color: var(--accent); color: var(--accent); }
+/* TOAST */
+.toast{position:fixed;bottom:calc(var(--nav-h) + 12px);left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 18px;border-radius:20px;font-size:12px;opacity:0;transition:all 0.25s;z-index:1000;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -391,40 +170,33 @@ body {
   <!-- HEADER -->
   <div class="header">
     <div>
-      <div class="logo">Topo<span>Field</span></div>
+      <div class="logo">Poligonal <span>CR</span></div>
     </div>
     <div class="header-right">
-      <div class="poly-badge" id="poly-badge">Sin poligonal activa</div>
-      <div class="offline-badge" id="offline-badge">● OFFLINE READY</div>
+      <div class="proj-badge" id="proj-badge">Selecciona un proyecto</div>
+      <div class="offline-badge">● OFFLINE READY</div>
     </div>
   </div>
 
   <!-- SCREENS -->
   <div class="screens">
 
-    <!-- ═══════════ POLIGONAL ═══════════ -->
-    <div class="screen active" id="screen-poly">
-
-      <!-- Install banner (shown if installable) -->
-      <div class="install-banner" id="install-banner" style="display:none">
-        <div style="font-size:22px">📲</div>
-        <div class="install-banner-text">
-          <strong>Instalar TopoField</strong><br>
-          Agrega la app a tu pantalla de inicio para usarla sin internet.
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="installApp()">INSTALAR</button>
+    <!-- ═══ PROYECTOS ═══ -->
+    <div class="screen active" id="screen-proyectos">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--text2)">MIS POLIGONALES</div>
+        <button class="btn btn-primary btn-sm" onclick="abrirNuevoProyecto()">+ NUEVA</button>
       </div>
+      <div id="proyectos-lista"></div>
+    </div>
 
-      <!-- Setup card -->
+    <!-- ═══ POLIGONAL ═══ -->
+    <div class="screen" id="screen-poly">
       <div class="card" id="poly-setup-card">
         <div class="card-title">⬡ Configurar poligonal</div>
         <div class="g2">
-          <div class="field">
-            <label>NOMBRE</label>
-            <input type="text" id="poly-name-input" placeholder="PG-01" autocomplete="off">
-          </div>
-          <div class="field">
-            <label>TIPO</label>
+          <div class="field"><label>NOMBRE</label><input type="text" id="poly-name-input" placeholder="PG-01" autocomplete="off"></div>
+          <div class="field"><label>TIPO</label>
             <select id="poly-type">
               <option value="cerrada">Cerrada</option>
               <option value="abierta">Abierta</option>
@@ -432,108 +204,87 @@ body {
           </div>
         </div>
         <div class="field">
-          <label>AZIMUT INICIAL — usar 0 si no hay referencia</label>
-          <div class="gms-row" id="az-inicial-gms">
+          <label>AZIMUT INICIAL</label>
+          <div class="gms-row">
             <input type="number" id="az-ini-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
             <input type="number" id="az-ini-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
             <input type="number" id="az-ini-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
           </div>
         </div>
         <div class="field">
-          <label>TOLERANCIA ANGULAR (K) — K × √n segundos</label>
+          <label>TOLERANCIA K (seg) — K×√n | 10=alta / 30=normal / 60=rápida</label>
           <input type="number" id="tolerancia-k" placeholder="30" value="30" step="1" inputmode="numeric">
         </div>
-        <button class="btn btn-primary" onclick="initPoly()">INICIAR POLIGONAL</button>
+        <button class="btn btn-primary" onclick="iniciarPoly()">INICIAR POLIGONAL</button>
       </div>
 
-      <!-- Point input -->
       <div id="point-form" style="display:none">
 
-        <!-- Modal edicion -->
-        <div id="edit-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:100; overflow-y:auto; padding:16px;">
-          <div class="card" style="margin-top:20px">
-            <div class="card-title">✏ Editar estación</div>
-            <input type="hidden" id="edit-idx">
-            <div class="g2">
-              <div class="field"><label>ESTACIÓN (DE)</label><input type="text" id="edit-from" autocomplete="off"></div>
-              <div class="field"><label>PUNTO ADELANTE</label><input type="text" id="edit-to" autocomplete="off"></div>
-            </div>
-            <!-- ATRÁS -->
-            <div class="alert alert-info" style="margin-bottom:10px">📡 LECTURA ATRÁS (verificación)</div>
-            <div class="g2">
-              <div class="field">
-                <label>DI ATRÁS (m)</label>
-                <input type="number" id="edit-di-b" step="0.001" inputmode="decimal">
+        <!-- Modal editar -->
+        <div class="modal" id="edit-modal">
+          <div class="modal-inner">
+            <div class="card">
+              <div class="card-title">✏ Editar estación</div>
+              <input type="hidden" id="edit-idx">
+              <div class="g2">
+                <div class="field"><label>ESTACIÓN (DE)</label><input type="text" id="edit-from" autocomplete="off"></div>
+                <div class="field"><label>PUNTO ADELANTE</label><input type="text" id="edit-to" autocomplete="off"></div>
               </div>
-              <div class="field">
-                <label>AV ATRÁS</label>
-                <div class="gms-row">
-                  <input type="number" id="edit-zc-b-g" min="0" max="179" inputmode="numeric"><span>°</span>
-                  <input type="number" id="edit-zc-b-m" min="0" max="59" inputmode="numeric"><span>'</span>
-                  <input type="number" id="edit-zc-b-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+              <div class="alert alert-info">📡 LECTURA ATRÁS</div>
+              <div class="g2">
+                <div class="field"><label>DI ATRÁS (m)</label><input type="number" id="edit-di-b" step="0.001" inputmode="decimal"></div>
+                <div class="field"><label>AV ATRÁS</label>
+                  <div class="gms-row">
+                    <input type="number" id="edit-zc-b-g" min="0" max="179" inputmode="numeric"><span>°</span>
+                    <input type="number" id="edit-zc-b-m" min="0" max="59" inputmode="numeric"><span>'</span>
+                    <input type="number" id="edit-zc-b-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="g2">
-              <div class="field"><label>HR ATRÁS (m)</label><input type="number" id="edit-hr-b" step="0.001" inputmode="decimal"></div>
-              <div class="field"><label>HI instrumento (m)</label><input type="number" id="edit-hi" step="0.001" inputmode="decimal"></div>
-            </div>
-            <!-- ADELANTE -->
-            <div class="alert alert-info" style="margin-bottom:10px">🎯 LECTURA ADELANTE</div>
-            <div class="g2">
-              <div class="field">
-                <label>DI ADELANTE (m)</label>
-                <input type="number" id="edit-di" step="0.001" inputmode="decimal">
+              <div class="g2">
+                <div class="field"><label>HR ATRÁS (m)</label><input type="number" id="edit-hr-b" step="0.001" inputmode="decimal"></div>
+                <div class="field"><label>HI (m)</label><input type="number" id="edit-hi" step="0.001" inputmode="decimal"></div>
               </div>
-              <div class="field">
-                <label>AV ADELANTE</label>
-                <div class="gms-row">
-                  <input type="number" id="edit-zc-g" min="0" max="179" inputmode="numeric"><span>°</span>
-                  <input type="number" id="edit-zc-m" min="0" max="59" inputmode="numeric"><span>'</span>
-                  <input type="number" id="edit-zc-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+              <div class="alert alert-info">🎯 LECTURA ADELANTE</div>
+              <div class="g2">
+                <div class="field"><label>DI ADELANTE (m)</label><input type="number" id="edit-di" step="0.001" inputmode="decimal"></div>
+                <div class="field"><label>AV ADELANTE</label>
+                  <div class="gms-row">
+                    <input type="number" id="edit-zc-g" min="0" max="179" inputmode="numeric"><span>°</span>
+                    <input type="number" id="edit-zc-m" min="0" max="59" inputmode="numeric"><span>'</span>
+                    <input type="number" id="edit-zc-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="g2">
-              <div class="field">
-                <label>AH ADELANTE</label>
-                <div class="gms-row">
-                  <input type="number" id="edit-beta-g" min="0" max="359" inputmode="numeric"><span>°</span>
-                  <input type="number" id="edit-beta-m" min="0" max="59" inputmode="numeric"><span>'</span>
-                  <input type="number" id="edit-beta-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+              <div class="g2">
+                <div class="field"><label>AH ADELANTE</label>
+                  <div class="gms-row">
+                    <input type="number" id="edit-beta-g" min="0" max="359" inputmode="numeric"><span>°</span>
+                    <input type="number" id="edit-beta-m" min="0" max="59" inputmode="numeric"><span>'</span>
+                    <input type="number" id="edit-beta-s" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+                  </div>
                 </div>
+                <div class="field"><label>HR ADELANTE (m)</label><input type="number" id="edit-hr" step="0.001" inputmode="decimal"></div>
               </div>
-              <div class="field"><label>HR ADELANTE (m)</label><input type="number" id="edit-hr" step="0.001" inputmode="decimal"></div>
-            </div>
-            <div class="row-btns">
-              <button class="btn btn-primary" style="flex:2" onclick="saveEdit()">GUARDAR CAMBIOS</button>
-              <button class="btn btn-secondary btn-sm" onclick="closeEdit()">CANCELAR</button>
+              <div class="row-btns">
+                <button class="btn btn-primary" style="flex:2" onclick="saveEdit()">GUARDAR</button>
+                <button class="btn btn-secondary btn-sm" onclick="closeEdit()">CANCELAR</button>
+              </div>
             </div>
           </div>
         </div>
 
+        <!-- Formulario entrada -->
         <div class="card">
           <div class="card-title" id="station-title">📍 Estación 1</div>
           <div class="g2">
-            <div class="field">
-              <label>ESTACIÓN (DE)</label>
-              <input type="text" id="pt-from" placeholder="A" autocomplete="off">
-            </div>
-            <div class="field">
-              <label>PUNTO ADELANTE</label>
-              <input type="text" id="pt-to" placeholder="B" autocomplete="off">
-            </div>
+            <div class="field"><label>ESTACIÓN (DE)</label><input type="text" id="pt-from" placeholder="A" autocomplete="off"></div>
+            <div class="field"><label>PUNTO ADELANTE</label><input type="text" id="pt-to" placeholder="B" autocomplete="off"></div>
           </div>
-
-          <!-- LECTURA ATRÁS -->
-          <div class="alert alert-info" style="margin-bottom:10px; margin-top:4px">📡 LECTURA ATRÁS — donde pusiste ceros</div>
+          <div class="alert alert-info" style="margin-top:4px">📡 LECTURA ATRÁS — donde pusiste ceros</div>
           <div class="g2">
-            <div class="field">
-              <label>DI ATRÁS (m)</label>
-              <input type="number" id="pt-di-b" placeholder="0.000" step="0.001" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label>AV ATRÁS</label>
+            <div class="field"><label>DI ATRÁS (m)</label><input type="number" id="pt-di-b" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+            <div class="field"><label>AV ATRÁS</label>
               <div class="gms-row">
                 <input type="number" id="pt-zc-b-g" placeholder="90" min="0" max="179" inputmode="numeric"><span>°</span>
                 <input type="number" id="pt-zc-b-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
@@ -542,25 +293,13 @@ body {
             </div>
           </div>
           <div class="g2">
-            <div class="field">
-              <label>HR ATRÁS (m)</label>
-              <input type="number" id="pt-hr-b" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label>HI instrumento (m)</label>
-              <input type="number" id="pt-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
-            </div>
+            <div class="field"><label>HR ATRÁS (m)</label><input type="number" id="pt-hr-b" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
+            <div class="field"><label>HI instrumento (m)</label><input type="number" id="pt-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
           </div>
-
-          <!-- LECTURA ADELANTE -->
-          <div class="alert alert-info" style="margin-bottom:10px">🎯 LECTURA ADELANTE — punto nuevo</div>
+          <div class="alert alert-info">🎯 LECTURA ADELANTE — punto nuevo</div>
           <div class="g2">
-            <div class="field">
-              <label>DI ADELANTE (m)</label>
-              <input type="number" id="pt-di" placeholder="0.000" step="0.001" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label>AV ADELANTE</label>
+            <div class="field"><label>DI ADELANTE (m)</label><input type="number" id="pt-di" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+            <div class="field"><label>AV ADELANTE</label>
               <div class="gms-row">
                 <input type="number" id="pt-zc-g" placeholder="90" min="0" max="179" inputmode="numeric"><span>°</span>
                 <input type="number" id="pt-zc-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
@@ -569,66 +308,49 @@ body {
             </div>
           </div>
           <div class="g2">
-            <div class="field">
-              <label>AH ADELANTE</label>
+            <div class="field"><label>AH ADELANTE</label>
               <div class="gms-row">
                 <input type="number" id="pt-beta-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
                 <input type="number" id="pt-beta-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
                 <input type="number" id="pt-beta-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
               </div>
             </div>
-            <div class="field">
-              <label>HR ADELANTE (m)</label>
-              <input type="number" id="pt-hr" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal">
-            </div>
+            <div class="field"><label>HR ADELANTE (m)</label><input type="number" id="pt-hr" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
           </div>
-
           <div class="row-btns">
-            <button class="btn btn-primary" style="flex:2" onclick="addPoint()">+ AGREGAR ESTACIÓN</button>
+            <button class="btn btn-primary" style="flex:2" onclick="addPoint()">+ AGREGAR</button>
             <button class="btn btn-warn btn-sm" onclick="closePoly()">CALCULAR</button>
             <button class="btn btn-secondary btn-sm" onclick="resetSetup()">↺</button>
           </div>
         </div>
 
-        <!-- Points list -->
         <div id="points-section" style="display:none">
           <div class="section-title">ESTACIONES INGRESADAS</div>
-          <div class="card" style="padding:8px 14px">
-            <div id="points-list"></div>
-          </div>
+          <div class="card" style="padding:8px 14px"><div id="points-list"></div></div>
         </div>
 
-        <!-- Results -->
         <div id="results-section" style="display:none">
           <div class="section-title">RESULTADOS</div>
-          <div class="card" id="results-card">
-            <div id="results-content"></div>
-          </div>
+          <div class="card"><div id="results-content"></div></div>
           <div id="adjustment-section" style="display:none">
             <div class="section-title">AJUSTE</div>
-            <div class="card">
-              <div id="adjustment-content"></div>
-            </div>
+            <div class="card"><div id="adjustment-content"></div></div>
           </div>
           <div id="coords-section" style="display:none">
             <div class="section-title">COORDENADAS RELATIVAS</div>
-            <div class="card">
-              <div id="coords-content"></div>
-            </div>
+            <div class="card"><div id="coords-content"></div></div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- ═══════════ AMARRE ═══════════ -->
+    <!-- ═══ AMARRE ═══ -->
     <div class="screen" id="screen-amarre">
       <div class="card">
         <div class="card-title">⊕ Amarre geodésico</div>
-        <div class="alert alert-info">
-          Ingresa las coordenadas de dos puntos conocidos. La app calcula el azimut real y transforma toda la poligonal a coordenadas absolutas.
-        </div>
+        <div class="alert alert-info">Ingresa coordenadas de dos puntos conocidos. La app calcula el azimut real y transforma toda la poligonal.</div>
         <div class="sep"></div>
-        <div class="card-title" style="color:var(--accent2); font-size:10px">PUNTO CONOCIDO 1 — inicio de poligonal</div>
+        <div class="card-title" style="color:var(--accent2);font-size:9px">PUNTO CONOCIDO 1 — inicio de poligonal</div>
         <div class="g2">
           <div class="field"><label>NOMBRE</label><input type="text" id="kp1-name" placeholder="P1" autocomplete="off"></div>
           <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="kp1-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
@@ -638,7 +360,7 @@ body {
           <div class="field"><label>E (m)</label><input type="number" id="kp1-e" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
         </div>
         <div class="sep"></div>
-        <div class="card-title" style="color:var(--accent2); font-size:10px">PUNTO CONOCIDO 2 — fin de poligonal</div>
+        <div class="card-title" style="color:var(--accent2);font-size:9px">PUNTO CONOCIDO 2 — fin de poligonal</div>
         <div class="g2">
           <div class="field"><label>NOMBRE</label><input type="text" id="kp2-name" placeholder="P2" autocomplete="off"></div>
           <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="kp2-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
@@ -652,38 +374,33 @@ body {
       <div id="amarre-results"></div>
     </div>
 
-    <!-- ═══════════ IRRADIACIÓN ═══════════ -->
+    <!-- ═══ IRRADIACIÓN ═══ -->
     <div class="screen" id="screen-irradia">
       <div class="card">
-        <div class="card-title">◎ Punto de armada (estación)</div>
-        <div class="alert alert-info">
-          Ingresa las coordenadas del punto donde estás armado y del punto visado (donde pusiste ceros). El azimut de orientación se calcula solo.
-        </div>
-        <div class="card-title" style="color:var(--accent2); font-size:9px; margin-top:4px">ESTACIÓN — donde está la máquina</div>
+        <div class="card-title">◎ Punto de armada</div>
+        <div class="alert alert-info">Ingresa estación y punto visado (donde pusiste ceros). El azimut se calcula automáticamente.</div>
+        <div class="card-title" style="color:var(--accent2);font-size:9px;margin-top:4px">ESTACIÓN — donde está la máquina</div>
         <div class="g2">
-          <div class="field"><label>NOMBRE ESTACIÓN</label><input type="text" id="ir-st-name" placeholder="P1" autocomplete="off"></div>
-          <div class="field"><label>HI instrumento (m)</label><input type="number" id="ir-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
+          <div class="field"><label>NOMBRE</label><input type="text" id="ir-st-name" placeholder="P1" autocomplete="off"></div>
+          <div class="field"><label>HI (m)</label><input type="number" id="ir-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
         </div>
         <div class="g2">
           <div class="field"><label>N (m)</label><input type="number" id="ir-n" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
           <div class="field"><label>E (m)</label><input type="number" id="ir-e" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
         </div>
         <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="ir-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
-
         <div class="sep"></div>
-        <div class="card-title" style="color:var(--accent2); font-size:9px">PUNTO VISADO — donde pusiste ceros (β = 0)</div>
+        <div class="card-title" style="color:var(--accent2);font-size:9px">PUNTO VISADO — donde pusiste ceros</div>
         <div class="g2">
-          <div class="field"><label>NOMBRE VISADO</label><input type="text" id="ir-vis-name" placeholder="P2" autocomplete="off"></div>
-          <div class="field"><label>— </label><div style="height:9px"></div></div>
+          <div class="field"><label>NOMBRE</label><input type="text" id="ir-vis-name" placeholder="P2" autocomplete="off"></div>
         </div>
         <div class="g2">
           <div class="field"><label>N (m)</label><input type="number" id="ir-vis-n" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
           <div class="field"><label>E (m)</label><input type="number" id="ir-vis-e" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
         </div>
-        <button class="btn btn-primary mt8" onclick="saveStation()">CALCULAR ORIENTACIÓN Y GUARDAR</button>
+        <button class="btn btn-primary mt8" onclick="saveStation()">CALCULAR ORIENTACIÓN</button>
         <div id="ir-az-display" style="display:none" class="alert alert-success mt8"></div>
       </div>
-
       <div class="card" id="ir-shot-card" style="display:none">
         <div class="card-title">📍 Punto de detalle</div>
         <div class="g2">
@@ -691,43 +408,55 @@ body {
           <div class="field"><label>DESCRIPCIÓN</label><input type="text" id="ir-desc" placeholder="Borde vía" autocomplete="off"></div>
         </div>
         <div class="g2">
-          <div class="field"><label>DIST. INCLINADA (m)</label><input type="number" id="ir-di" placeholder="0.000" step="0.001" inputmode="decimal"></div>
-          <div class="field"><label>ÁNGULO VERTICAL (°)</label><input type="number" id="ir-zc" placeholder="90.0000" step="0.0001" inputmode="decimal"></div>
+          <div class="field"><label>DI (m)</label><input type="number" id="ir-di" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+          <div class="field"><label>AV</label>
+            <div class="gms-row">
+              <input type="number" id="ir-zc-g" placeholder="90" min="0" max="179" inputmode="numeric"><span>°</span>
+              <input type="number" id="ir-zc-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
+              <input type="number" id="ir-zc-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+            </div>
+          </div>
         </div>
         <div class="g2">
-          <div class="field"><label>ÁNGULO LIMBO β (°)</label><input type="number" id="ir-beta" placeholder="0.0000" step="0.0001" inputmode="decimal"></div>
-          <div class="field"><label>HR bastón (m)</label><input type="number" id="ir-hr" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
+          <div class="field"><label>AH</label>
+            <div class="gms-row">
+              <input type="number" id="ir-beta-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
+              <input type="number" id="ir-beta-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
+              <input type="number" id="ir-beta-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+            </div>
+          </div>
+          <div class="field"><label>HR (m)</label><input type="number" id="ir-hr" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
         </div>
         <button class="btn btn-primary" onclick="addIrradPoint()">+ CALCULAR Y AGREGAR</button>
       </div>
       <div id="irrad-list"></div>
     </div>
 
-    <!-- ═══════════ EXPORTAR / DATOS ═══════════ -->
+    <!-- ═══ DATOS ═══ -->
     <div class="screen" id="screen-export">
       <div class="card">
-        <div class="card-title">📊 Resumen de datos</div>
+        <div class="card-title">📊 Resumen del proyecto</div>
         <div id="export-summary"></div>
       </div>
       <div class="section-title">EXPORTAR CSV</div>
       <div class="card">
         <button class="btn btn-success" onclick="exportCSV('observaciones')">⬇ Observaciones de poligonal</button>
         <button class="btn btn-success mt8" onclick="exportCSV('coordenadas')">⬇ Coordenadas vértices</button>
-        <button class="btn btn-success mt8" onclick="exportCSV('irradiacion')">⬇ Puntos de detalle (irradiación)</button>
+        <button class="btn btn-success mt8" onclick="exportCSV('irradiacion')">⬇ Puntos de detalle</button>
         <button class="btn btn-success mt8" onclick="exportCSV('todo')">⬇ Todo en un archivo</button>
       </div>
       <div class="section-title">GESTIÓN</div>
       <div class="card">
-        <div class="alert alert-info">Los datos se guardan automáticamente en este dispositivo. No se borran al cerrar la app.</div>
+        <div class="alert alert-info">Los datos se guardan automáticamente en este dispositivo.</div>
         <button class="btn btn-warn mt8" onclick="exportJSON()">💾 Copia de seguridad (JSON)</button>
-        <button class="btn btn-danger mt8" onclick="clearAllData()">🗑 Borrar todos los datos</button>
+        <button class="btn btn-danger mt8" onclick="eliminarProyectoActual()">🗑 Eliminar este proyecto</button>
       </div>
     </div>
 
   </div><!-- /screens -->
 
   <!-- NAV -->
-  <div class="nav">
+  <div class="nav" id="main-nav" style="display:none">
     <button class="nav-btn active" onclick="showScreen('poly')" id="nav-poly">
       <span class="nav-icon">⬡</span>POLIGONAL
     </button>
@@ -742,35 +471,38 @@ body {
     </button>
   </div>
 
+  <!-- Modal nuevo proyecto -->
+  <div class="modal" id="nuevo-modal">
+    <div class="modal-inner">
+      <div class="card">
+        <div class="card-title">+ Nueva poligonal</div>
+        <div class="field"><label>NOMBRE DEL PROYECTO</label><input type="text" id="nuevo-nombre" placeholder="PG-01" autocomplete="off"></div>
+        <div class="field"><label>TIPO</label>
+          <select id="nuevo-tipo">
+            <option value="cerrada">Cerrada</option>
+            <option value="abierta">Abierta</option>
+          </select>
+        </div>
+        <div class="row-btns">
+          <button class="btn btn-primary" style="flex:2" onclick="crearProyecto()">CREAR PROYECTO</button>
+          <button class="btn btn-secondary btn-sm" onclick="cerrarNuevoModal()">CANCELAR</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <div class="toast" id="toast"></div>
-
 <script src="topo.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').then(() => {
-      document.getElementById('offline-badge').textContent = '● OFFLINE READY';
-    }).catch(() => {});
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-
   let deferredPrompt = null;
-  window.addEventListener('beforeinstallprompt', (e) => {
+  window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
-    document.getElementById('install-banner').style.display = 'flex';
-  });
-  function installApp() {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => {
-      deferredPrompt = null;
-      document.getElementById('install-banner').style.display = 'none';
-    });
-  }
-  window.addEventListener('appinstalled', () => {
-    document.getElementById('install-banner').style.display = 'none';
-    showToast('✓ TopoField instalada correctamente');
   });
 </script>
 </body>

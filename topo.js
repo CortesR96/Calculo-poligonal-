@@ -1,1067 +1,879 @@
-// ═══════════════════════════════════════════════════
-//  TopoField — Motor de cálculo topográfico
+// ═══════════════════════════════════════════════
+//  Poligonal CR — Motor topográfico
 //  Convenios:
-//   · Ángulo vertical ZC: 90° = horizontal, 0° = vertical arriba
-//   · DH = DI × sin(ZC)
-//   · ΔZ = DI × cos(ZC) + hi − hr
-//   · Az(B→C) = Az(A→B) + 180° − β   (ceros en A, lees β a C)
-//   · Azimut normalizado en [0°, 360°)
-// ═══════════════════════════════════════════════════
+//   AV cenital: 90°=horizontal, 0°=vertical arriba
+//   DH = DI × sin(AV)
+//   ΔZ = DI × cos(AV) + hi − hr
+//   Az(B→C) = Az(A→B) + 180° − AH
+// ═══════════════════════════════════════════════
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
+function toRad(d){ return d*DEG }
+function toDeg(r){ return r*RAD }
+function norm360(a){ return ((a%360)+360)%360 }
+function fmt(n,d=4){ return (isNaN(n)||n===null)?'—':Number(n).toFixed(d) }
 
-function toRad(d) { return d * DEG; }
-function toDeg(r) { return r * RAD; }
-function norm360(a) { return ((a % 360) + 360) % 360; }
-function fmt(n, d = 4) { return (isNaN(n) || n === null) ? '—' : Number(n).toFixed(d); }
-function fmtDeg(n) { return fmt(n, 4) + '°'; }
-
-
-// ─── Conversión GMS ↔ Decimal ────────────────────
-function gmsToDecimal(g, m, s) {
-  g = parseFloat(g) || 0;
-  m = parseFloat(m) || 0;
-  s = parseFloat(s) || 0;
-  return g + m / 60 + s / 3600;
+// ─── GMS ────────────────────────────────────────
+function gmsToDecimal(g,m,s){
+  g=parseFloat(g)||0; m=parseFloat(m)||0; s=parseFloat(s)||0;
+  return g+m/60+s/3600;
+}
+function decimalToGMS(dec){
+  dec=((dec%360)+360)%360;
+  const g=Math.floor(dec);
+  const mFull=(dec-g)*60;
+  const m=Math.floor(mFull);
+  const s=Math.round((mFull-m)*60*10)/10;
+  return {g,m,s};
+}
+function fmtGMS(dec){
+  if(isNaN(dec)||dec===null) return '—';
+  const {g,m,s}=decimalToGMS(dec);
+  return `${g}°${String(m).padStart(2,'0')}'${String(s.toFixed(1)).padStart(4,'0')}"`;
+}
+function readGMS(prefix){
+  const g=document.getElementById(prefix+'-g');
+  const m=document.getElementById(prefix+'-m');
+  const s=document.getElementById(prefix+'-s');
+  if(!g) return NaN;
+  return gmsToDecimal(g.value,m.value,s.value);
+}
+function writeGMS(prefix,decimal){
+  const {g,m,s}=decimalToGMS(decimal);
+  const eg=document.getElementById(prefix+'-g');
+  const em=document.getElementById(prefix+'-m');
+  const es=document.getElementById(prefix+'-s');
+  if(!eg) return;
+  eg.value=g; em.value=String(m).padStart(2,'0'); es.value=s.toFixed(1);
+}
+function clearGMS(prefix){
+  ['g','m','s'].forEach(k=>{ const el=document.getElementById(prefix+'-'+k); if(el) el.value=''; });
 }
 
-function decimalToGMS(dec) {
-  dec = ((dec % 360) + 360) % 360;
-  const g = Math.floor(dec);
-  const mFull = (dec - g) * 60;
-  const m = Math.floor(mFull);
-  const s = (mFull - m) * 60;
-  return { g, m, s: Math.round(s * 10) / 10 };
+// ─── Fórmulas base ──────────────────────────────
+function calcDH(DI,AV){ return DI*Math.sin(toRad(AV)) }
+function calcDZ(DI,AV,hi,hr){ return DI*Math.cos(toRad(AV))+hi-hr }
+function propagarAz(azPrev,ah){ return norm360(azPrev+180-ah) }
+function calcDN(DH,az){ return DH*Math.cos(toRad(az)) }
+function calcDE(DH,az){ return DH*Math.sin(toRad(az)) }
+
+// ─── Cálculo poligonal ──────────────────────────
+function computePoligonal(points,azInicial,polyType,toleranciaK){
+  let az=azInicial, N=0, E=0, Z=0, totalLen=0;
+  const results=[];
+  for(let i=0;i<points.length;i++){
+    const p=points[i];
+    const DH=calcDH(p.DI,p.ZC);
+    const DZ=calcDZ(p.DI,p.ZC,p.hi,p.hr);
+    az = i===0 ? azInicial : propagarAz(results[i-1].az, p.beta);
+    const dN=calcDN(DH,az), dE=calcDE(DH,az);
+    N+=dN; E+=dE; Z+=DZ; totalLen+=DH;
+    results.push({...p,DH,DZ,az,dN,dE,N_acum:N,E_acum:E,Z_acum:Z});
+  }
+  const errN=N, errE=E, errZ=Z;
+  const errLineal=Math.sqrt(errN*errN+errE*errE);
+  const precision=totalLen>0&&errLineal>0.0001?Math.round(totalLen/errLineal):999999;
+  let errAngular=null,tolAngular=null,cierreAngularOk=null;
+  if(polyType==='cerrada'&&points.length>=3){
+    const n=points.length;
+    const sumBeta=points.reduce((a,p)=>a+p.beta,0);
+    errAngular=sumBeta-(n-2)*180;
+    tolAngular=(toleranciaK||30)*Math.sqrt(n)/3600;
+    cierreAngularOk=Math.abs(errAngular)<=tolAngular;
+  }
+  let calidadLineal='mala';
+  if(precision>=5000) calidadLineal='excelente';
+  else if(precision>=3000) calidadLineal='buena';
+  else if(precision>=1000) calidadLineal='regular';
+  return{results,totalLen,errN,errE,errZ,errLineal,precision,errAngular,tolAngular,cierreAngularOk,calidadLineal};
 }
 
-function fmtGMS(dec) {
-  const { g, m, s } = decimalToGMS(dec);
-  return `${g}° ${String(m).padStart(2,'0')}' ${String(s.toFixed(1)).padStart(4,'0')}"`;
-}
-
-function readGMS(idPrefix) {
-  const g = document.getElementById(idPrefix + '-g');
-  const m = document.getElementById(idPrefix + '-m');
-  const s = document.getElementById(idPrefix + '-s');
-  if (!g) return NaN;
-  return gmsToDecimal(g.value, m.value, s.value);
-}
-
-function writeGMS(idPrefix, decimal) {
-  const { g, m, s } = decimalToGMS(decimal);
-  const eg = document.getElementById(idPrefix + '-g');
-  const em = document.getElementById(idPrefix + '-m');
-  const es = document.getElementById(idPrefix + '-s');
-  if (!eg) return;
-  eg.value = g;
-  em.value = String(m).padStart(2, '0');
-  es.value = s.toFixed(1);
-}
-
-function clearGMS(idPrefix) {
-  ['g','m','s'].forEach(k => {
-    const el = document.getElementById(idPrefix + '-' + k);
-    if (el) el.value = '';
+function ajustarBowditch(computed){
+  const{results,totalLen,errN,errE,errZ}=computed;
+  let N=0,E=0,Z=0;
+  return results.map(r=>{
+    const f=r.DH/totalLen;
+    const corrN=r.dN-errN*f, corrE=r.dE-errE*f, corrZ=r.DZ-errZ*f;
+    N+=corrN; E+=corrE; Z+=corrZ;
+    return{...r,corrN,corrE,corrZ,N_adj:N,E_adj:E,Z_adj:Z};
   });
 }
-
-// ─── Fórmulas base ───────────────────────────────
-function calcDH(DI, ZC_deg) {
-  return DI * Math.sin(toRad(ZC_deg));
+function ajustarTransito(computed){
+  const{results,errN,errE,errZ}=computed;
+  const sN=results.reduce((a,r)=>a+Math.abs(r.dN),0);
+  const sE=results.reduce((a,r)=>a+Math.abs(r.dE),0);
+  const sZ=results.reduce((a,r)=>a+Math.abs(r.DZ),0);
+  let N=0,E=0,Z=0;
+  return results.map(r=>{
+    const corrN=r.dN-(sN>0?errN*Math.abs(r.dN)/sN:0);
+    const corrE=r.dE-(sE>0?errE*Math.abs(r.dE)/sE:0);
+    const corrZ=r.DZ-(sZ>0?errZ*Math.abs(r.DZ)/sZ:0);
+    N+=corrN; E+=corrE; Z+=corrZ;
+    return{...r,corrN,corrE,corrZ,N_adj:N,E_adj:E,Z_adj:Z};
+  });
+}
+function precisionTrasAjuste(adj,totalLen){
+  const last=adj[adj.length-1];
+  const e=Math.sqrt(last.N_adj*last.N_adj+last.E_adj*last.E_adj);
+  return e>0.0001?Math.round(totalLen/e):999999;
 }
 
-function calcDZ(DI, ZC_deg, hi, hr) {
-  return DI * Math.cos(toRad(ZC_deg)) + hi - hr;
-}
+// ═══════════════════════════════════════════════
+//  GESTIÓN DE PROYECTOS
+// ═══════════════════════════════════════════════
 
-// Propagación de azimut:
-// Armado en B, ceros en A, lees β a C
-// Az(B→C) = Az(A→B) + 180° − β
-function propagarAzimut(azPrev, beta_deg) {
-  return norm360(azPrev + 180 - beta_deg);
-}
+const SK_PROYECTOS = 'pcr_proyectos_v1';
+const SK_ACTIVO    = 'pcr_activo_v1';
 
-function calcDeltaN(DH, Az_deg) {
-  return DH * Math.cos(toRad(Az_deg));
-}
-
-function calcDeltaE(DH, Az_deg) {
-  return DH * Math.sin(toRad(Az_deg));
-}
-
-// ─── Cálculo completo de poligonal ───────────────
-function computePoligonal(points, azInicial, polyType, toleranciaK) {
-  let az = azInicial;
-  let N = 0, E = 0, Z = 0;
-  const results = [];
-  let totalLen = 0;
-
-  for (let i = 0; i < points.length; i++) {
-    const p = points[i];
-    const DH = calcDH(p.DI, p.ZC);
-    const DZ = calcDZ(p.DI, p.ZC, p.hi, p.hr);
-
-    // El azimut del primer tramo es el azimut inicial
-    // Los siguientes se propagan con la fórmula
-    if (i === 0) {
-      az = azInicial;
-    } else {
-      az = propagarAzimut(results[i - 1].az, p.beta);
-    }
-
-    const dN = calcDeltaN(DH, az);
-    const dE = calcDeltaE(DH, az);
-    N += dN;
-    E += dE;
-    Z += DZ;
-    totalLen += DH;
-
-    results.push({ ...p, DH, DZ, az, dN, dE, N_acum: N, E_acum: E, Z_acum: Z });
-  }
-
-  // ── Errores de cierre ──
-  const errN = N;  // para cerrada debe ser 0
-  const errE = E;
-  const errZ = Z;
-  const errLineal = Math.sqrt(errN * errN + errE * errE);
-  const perimetro = totalLen;
-  const precision = (perimetro > 0 && errLineal > 0.0001)
-    ? Math.round(perimetro / errLineal)
-    : 999999;
-
-  // ── Cierre angular (solo poligonal cerrada) ──
-  let errAngular = null;
-  let tolAngular = null;
-  let cierreAngularOk = null;
-  if (polyType === 'cerrada' && points.length >= 3) {
-    const n = points.length;
-    const sumBeta = points.reduce((acc, p) => acc + p.beta, 0);
-    const teorico = (n - 2) * 180;
-    errAngular = sumBeta - teorico;
-    const K = toleranciaK || 30;
-    tolAngular = K * Math.sqrt(n) / 3600; // convertir segundos a grados
-    cierreAngularOk = Math.abs(errAngular) <= tolAngular;
-  }
-
-  // ── Calidad de precisión ──
-  let calidadLineal;
-  if (precision >= 5000) calidadLineal = 'excelente';
-  else if (precision >= 3000) calidadLineal = 'buena';
-  else if (precision >= 1000) calidadLineal = 'regular';
-  else calidadLineal = 'mala';
-
+function proyectoVacio(nombre, tipo){
   return {
-    results,
-    totalLen: perimetro,
-    errN, errE, errZ, errLineal, precision,
-    errAngular, tolAngular, cierreAngularOk,
-    calidadLineal
+    id: Date.now().toString(36)+Math.random().toString(36).slice(2),
+    nombre, tipo,
+    fechaCreacion: new Date().toLocaleDateString('es-CO'),
+    fechaModificacion: new Date().toLocaleDateString('es-CO'),
+    // Poligonal
+    azInicial:0, toleranciaK:30,
+    points:[], computed:null, adjustedCoords:null,
+    // Amarre
+    geoCoords:null, knownPoints:null,
+    // Irradiación
+    irradStation:null, irradPoints:[]
   };
 }
 
-// ─── Ajuste Bowditch (Compass) ────────────────────
-// Corrección proporcional a la longitud de cada lado
-function ajustarBowditch(computed) {
-  const { results, totalLen, errN, errE, errZ } = computed;
-  let N = 0, E = 0, Z = 0;
-  return results.map(r => {
-    const f = r.DH / totalLen;
-    const corrN = r.dN - errN * f;
-    const corrE = r.dE - errE * f;
-    const corrZ = r.DZ - errZ * f;
-    N += corrN;
-    E += corrE;
-    Z += corrZ;
-    return { ...r, corrN, corrE, corrZ, N_adj: N, E_adj: E, Z_adj: Z };
-  });
+function cargarProyectos(){
+  try{ return JSON.parse(localStorage.getItem(SK_PROYECTOS)||'[]'); }catch(e){ return []; }
+}
+function guardarProyectos(lista){
+  try{ localStorage.setItem(SK_PROYECTOS, JSON.stringify(lista)); }catch(e){}
+}
+function cargarIdActivo(){
+  return localStorage.getItem(SK_ACTIVO)||null;
+}
+function guardarIdActivo(id){
+  if(id) localStorage.setItem(SK_ACTIVO,id);
+  else localStorage.removeItem(SK_ACTIVO);
 }
 
-// ─── Ajuste Tránsito ──────────────────────────────
-// Corrección proporcional a la proyección absoluta
-function ajustarTransito(computed) {
-  const { results, errN, errE, errZ } = computed;
-  const sumAbsDN = results.reduce((a, r) => a + Math.abs(r.dN), 0);
-  const sumAbsDE = results.reduce((a, r) => a + Math.abs(r.dE), 0);
-  const sumAbsDZ = results.reduce((a, r) => a + Math.abs(r.DZ), 0);
-  let N = 0, E = 0, Z = 0;
-  return results.map(r => {
-    const corrN = r.dN - (sumAbsDN > 0 ? errN * Math.abs(r.dN) / sumAbsDN : 0);
-    const corrE = r.dE - (sumAbsDE > 0 ? errE * Math.abs(r.dE) / sumAbsDE : 0);
-    const corrZ = r.DZ - (sumAbsDZ > 0 ? errZ * Math.abs(r.DZ) / sumAbsDZ : 0);
-    N += corrN;
-    E += corrE;
-    Z += corrZ;
-    return { ...r, corrN, corrE, corrZ, N_adj: N, E_adj: E, Z_adj: Z };
-  });
+// Proyecto actualmente abierto en memoria
+let proyecto = null;
+
+function guardarProyectoActual(){
+  if(!proyecto) return;
+  proyecto.fechaModificacion = new Date().toLocaleDateString('es-CO');
+  const lista = cargarProyectos();
+  const idx = lista.findIndex(p=>p.id===proyecto.id);
+  if(idx>=0) lista[idx]=proyecto;
+  else lista.push(proyecto);
+  guardarProyectos(lista);
 }
 
-// ─── Precisión tras ajuste ────────────────────────
-function precisionTrasAjuste(adj, totalLen) {
-  const last = adj[adj.length - 1];
-  const errLin = Math.sqrt(last.N_adj * last.N_adj + last.E_adj * last.E_adj);
-  return errLin > 0.0001 ? Math.round(totalLen / errLin) : 999999;
+// ─── Toast ──────────────────────────────────────
+function showToast(msg,duration=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),duration);
 }
 
-// ─── Amarre geodésico ─────────────────────────────
-function calcularAmarre(kp1, kp2, coordsRelativas, azInicial) {
-  // Azimut real entre los dos puntos conocidos
-  const dN = kp2.N - kp1.N;
-  const dE = kp2.E - kp1.E;
-  const azReal = norm360(toDeg(Math.atan2(dE, dN)));
-
-  // Ángulo de rotación desde azimut arbitrario al real
-  const rotAngle = toRad(azReal - azInicial);
-  const cosR = Math.cos(rotAngle);
-  const sinR = Math.sin(rotAngle);
-
-  // Transformar todas las coordenadas relativas
-  const geoCoords = coordsRelativas.map(p => {
-    // Rotación
-    const N_rot = p.N * cosR - p.E * sinR;
-    const E_rot = p.N * sinR + p.E * cosR;
-    // Traslación desde kp1
-    return {
-      name: p.name,
-      N: kp1.N + N_rot,
-      E: kp1.E + E_rot,
-      Z: kp1.Z + p.Z
-    };
-  });
-
-  return { azReal, geoCoords };
-}
-
-// ─── Irradiación ─────────────────────────────────
-function calcularIrradiacion(stacion, shot) {
-  const { N: stN, E: stE, Z: stZ, hi: stHI, azOrientacion } = stacion;
-  const DH = calcDH(shot.DI, shot.ZC);
-  const DZ = calcDZ(shot.DI, shot.ZC, stHI, shot.hr);
-  // Azimut al punto = orientación + ángulo limbo
-  const az = norm360(azOrientacion + shot.beta);
-  const N = stN + calcDeltaN(DH, az);
-  const E = stE + calcDeltaE(DH, az);
-  const Z = stZ + DZ;
-  return { DH, DZ, az, N, E, Z };
-}
-
-
-// ═══════════════════════════════════════════════════
-//  ESTADO DE LA APP
-// ═══════════════════════════════════════════════════
-
-const STORAGE_KEY = 'topofield_v3';
-
-let state = {
-  polyName: '',
-  polyType: 'cerrada',
-  azInicial: 0,
-  toleranciaK: 30,
-  points: [],
-  computed: null,
-  adjustedCoords: null,  // { method, coords: [{name,N,E,Z}] }
-  geoCoords: null,
-  knownPoints: null,
-  irradStation: null,
-  irradPoints: []
-};
-
-function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { }
-}
-
-function loadState() {
-  try {
-    const s = localStorage.getItem(STORAGE_KEY);
-    if (s) state = { ...state, ...JSON.parse(s) };
-  } catch (e) { }
-}
-
-// ─── Toast ────────────────────────────────────────
-function showToast(msg, duration = 2500) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
-}
-
-
-// ═══════════════════════════════════════════════════
-//  NAVEGACIÓN
-// ═══════════════════════════════════════════════════
-
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('screen-' + id).classList.add('active');
-  document.getElementById('nav-' + id).classList.add('active');
-  if (id === 'export') renderExportSummary();
-  if (id === 'irradia') renderIrradList();
-}
-
-
-// ═══════════════════════════════════════════════════
-//  MÓDULO POLIGONAL
-// ═══════════════════════════════════════════════════
-
-function initPoly() {
-  const name = document.getElementById('poly-name-input').value.trim() || 'PG-01';
-  const type = document.getElementById('poly-type').value;
-  const az = readGMS('az-ini');
-  const k = parseInt(document.getElementById('tolerancia-k').value) || 30;
-
-  state.polyName = name;
-  state.polyType = type;
-  state.azInicial = az;
-  state.toleranciaK = k;
-  if (state.points.length === 0) {
-    state.computed = null;
-    state.adjustedCoords = null;
-    state.geoCoords = null;
-  }
-
-  saveState();
-  updatePolyBadge();
-  document.getElementById('poly-setup-card').style.display = 'none';
-  document.getElementById('point-form').style.display = 'block';
-  updateStationTitle();
-  renderPointsList();
-
-  if (state.computed) {
-    renderResults();
-  }
-}
-
-function resetSetup() {
-  if (state.points.length > 0) {
-    if (!confirm('¿Volver a la configuración? Los puntos ya ingresados se mantienen.')) return;
-  }
-  document.getElementById('poly-setup-card').style.display = 'block';
-  document.getElementById('point-form').style.display = 'none';
-  document.getElementById('poly-name-input').value = state.polyName || '';
-  document.getElementById('poly-type').value = state.polyType || 'cerrada';
-  document.getElementById('az-inicial').value = state.azInicial || 0;
-  document.getElementById('tolerancia-k').value = state.toleranciaK || 30;
-}
-
-function updatePolyBadge() {
-  const badge = document.getElementById('poly-badge');
-  badge.textContent = state.polyName
-    ? `${state.polyName} (${state.polyType})`
-    : 'Sin poligonal activa';
-}
-
-function updateStationTitle() {
-  const n = state.points.length;
-  const title = document.getElementById('station-title');
-  title.textContent = `📍 Estación ${n + 1}`;
-
-  // Autocompletar "DE" con el último destino
-  if (n > 0) {
-    const last = state.points[n - 1];
-    document.getElementById('pt-from').value = last.to;
-  }
-}
-
-function addPoint() {
-  const from = document.getElementById('pt-from').value.trim();
-  const to   = document.getElementById('pt-to').value.trim();
-
-  if (!from || !to) { showToast('⚠ Ingresa los nombres DE y punto adelante'); return; }
-
-  // ── Lectura ATRÁS ──
-  const DI_b = parseFloat(document.getElementById('pt-di-b').value);
-  const ZC_b = readGMS('pt-zc-b');
-  const hr_b = parseFloat(document.getElementById('pt-hr-b').value) || 1.5;
-
-  // ── Lectura ADELANTE ──
-  const DI   = parseFloat(document.getElementById('pt-di').value);
-  const ZC   = readGMS('pt-zc');
-  const beta = readGMS('pt-beta');
-  const hi   = parseFloat(document.getElementById('pt-hi').value) || 1.5;
-  const hr   = parseFloat(document.getElementById('pt-hr').value) || 1.5;
-
-  // Validaciones adelante
-  if (isNaN(DI) || DI <= 0) { showToast('⚠ DI adelante inválida'); return; }
-  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo vertical adelante inválido (0°-180°)'); return; }
-
-  // Validar AH atrás — siempre debe ser 0°00'00"
-  const ah_b_deg = readGMS('pt-zc-b'); // AH atrás no existe como campo, se asume 0
-  // Verificar que no pusieron nada raro en AH atrás
-  // (el campo AH atrás no existe, se omite — la lectura atrás solo tiene ZV y DI)
-
-  // Detectar cierre: si el punto adelante = primer punto de la poligonal
-  const esCierre = state.points.length >= 2 &&
-    to.trim().toUpperCase() === state.points[0].from.trim().toUpperCase();
-
-  // Verificación distancia ida vs vuelta (si hay punto anterior)
-  let diffDH = null, diffDZ = null;
-  if (state.points.length > 0 && !isNaN(DI_b) && DI_b > 0 && !isNaN(ZC_b) && ZC_b > 0) {
-    const prev = state.points[state.points.length - 1];
-    const DH_prev_fwd = calcDH(prev.DI, prev.ZC);
-    const DH_back     = calcDH(DI_b, ZC_b);
-    const DZ_prev_fwd = calcDZ(prev.DI, prev.ZC, prev.hi, prev.hr);
-    const DZ_back     = calcDZ(DI_b, ZC_b, hi, hr_b);
-    diffDH = Math.abs(DH_prev_fwd - DH_back);
-    diffDZ = Math.abs(DZ_prev_fwd + DZ_back); // suma porque sentidos opuestos
-  }
-
-  state.points.push({ from, to, DI, ZC, beta, hi, hr, DI_b, ZC_b, hr_b, diffDH, diffDZ, esCierre });
-  state.computed = null;
-  state.adjustedCoords = null;
-  saveState();
-
-  // Limpiar campos
-  document.getElementById('pt-to').value = '';
-  document.getElementById('pt-di-b').value = '';
-  clearGMS('pt-zc-b');
-  document.getElementById('pt-hr-b').value = '1.500';
-  document.getElementById('pt-di').value = '';
-  clearGMS('pt-zc');
-  clearGMS('pt-beta');
-  document.getElementById('pt-hr').value = '1.500';
-
-  updateStationTitle();
-  renderPointsList();
-
-  // Mostrar diferencias si las hay
-  if (diffDH !== null) {
-    const clrDH = diffDH > 0.05 ? '⚠' : '✓';
-    const clrDZ = diffDZ > 0.05 ? '⚠' : '✓';
-    showToast(`${clrDH} ΔDH=${fmt(diffDH,3)}m  ${clrDZ} ΔCota=${fmt(diffDZ,3)}m`, 4000);
+// ─── Navegación ─────────────────────────────────
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  const nb=document.getElementById('nav-'+id);
+  if(nb) nb.classList.add('active');
+  if(id==='export') renderExportSummary();
+  if(id==='irradia') renderIrradList();
+  if(id==='proyectos'){
+    document.getElementById('main-nav').style.display='none';
+    renderProyectos();
   } else {
-    showToast(`✓ Estación ${from}→${to} agregada`);
-  }
-
-  // Si es cierre, calcular automáticamente
-  if (esCierre) {
-    setTimeout(() => {
-      showToast('🔒 Cierre detectado — calculando poligonal...', 2500);
-      setTimeout(closePoly, 1500);
-    }, 500);
-  } else {
-    document.getElementById('pt-to').focus();
+    document.getElementById('main-nav').style.display='flex';
   }
 }
 
-function removePoint(i) {
-  if (!confirm(`¿Eliminar estación ${state.points[i].from}→${state.points[i].to}?`)) return;
-  state.points.splice(i, 1);
-  state.computed = null;
-  state.adjustedCoords = null;
-  saveState();
-  renderPointsList();
-  updateStationTitle();
-  document.getElementById('results-section').style.display = 'none';
-}
+// ═══════════════════════════════════════════════
+//  PANTALLA DE PROYECTOS
+// ═══════════════════════════════════════════════
 
-function openEdit(i) {
-  const p = state.points[i];
-  document.getElementById('edit-idx').value = i;
-  document.getElementById('edit-from').value = p.from;
-  document.getElementById('edit-to').value = p.to;
-  document.getElementById('edit-hi').value = p.hi;
-  // Atrás
-  document.getElementById('edit-di-b').value = p.DI_b || '';
-  if (p.ZC_b) writeGMS('edit-zc-b', p.ZC_b); else clearGMS('edit-zc-b');
-  document.getElementById('edit-hr-b').value = p.hr_b || 1.5;
-  // Adelante
-  document.getElementById('edit-di').value = p.DI;
-  writeGMS('edit-zc', p.ZC);
-  writeGMS('edit-beta', p.beta);
-  document.getElementById('edit-hr').value = p.hr;
-  document.getElementById('edit-modal').style.display = 'block';
-}
-
-function closeEdit() {
-  document.getElementById('edit-modal').style.display = 'none';
-}
-
-function saveEdit() {
-  const i    = parseInt(document.getElementById('edit-idx').value);
-  const from = document.getElementById('edit-from').value.trim();
-  const to   = document.getElementById('edit-to').value.trim();
-  const hi   = parseFloat(document.getElementById('edit-hi').value) || 1.5;
-  const DI_b = parseFloat(document.getElementById('edit-di-b').value);
-  const ZC_b = readGMS('edit-zc-b');
-  const hr_b = parseFloat(document.getElementById('edit-hr-b').value) || 1.5;
-  const DI   = parseFloat(document.getElementById('edit-di').value);
-  const ZC   = readGMS('edit-zc');
-  const beta = readGMS('edit-beta');
-  const hr   = parseFloat(document.getElementById('edit-hr').value) || 1.5;
-
-  if (!from || !to) { showToast('⚠ Nombre DE y adelante requeridos'); return; }
-  if (isNaN(DI) || DI <= 0) { showToast('⚠ DI adelante inválida'); return; }
-  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ AV adelante inválido'); return; }
-
-  // Recalcular verificación
-  let diffDH = null, diffDZ = null;
-  if (i > 0 && !isNaN(DI_b) && DI_b > 0 && !isNaN(ZC_b) && ZC_b > 0) {
-    const prev = state.points[i - 1];
-    const DH_prev_fwd = calcDH(prev.DI, prev.ZC);
-    const DH_back     = calcDH(DI_b, ZC_b);
-    const DZ_prev_fwd = calcDZ(prev.DI, prev.ZC, prev.hi, prev.hr);
-    const DZ_back     = calcDZ(DI_b, ZC_b, hi, hr_b);
-    diffDH = Math.abs(DH_prev_fwd - DH_back);
-    diffDZ = Math.abs(DZ_prev_fwd + DZ_back);
-  }
-
-  const esCierre = i >= 2 && to.trim().toUpperCase() === state.points[0].from.trim().toUpperCase();
-  state.points[i] = { from, to, DI, ZC, beta, hi, hr, DI_b, ZC_b, hr_b, diffDH, diffDZ, esCierre };
-  state.computed = null;
-  state.adjustedCoords = null;
-  saveState();
-  closeEdit();
-  renderPointsList();
-  showToast('✓ Estación actualizada');
-}
-
-function closePoly() {
-  if (state.points.length < 2) {
-    showToast('⚠ Necesitas al menos 2 puntos para calcular');
+function renderProyectos(){
+  const lista=cargarProyectos();
+  const div=document.getElementById('proyectos-lista');
+  if(lista.length===0){
+    div.innerHTML=`<div class="empty-state"><div class="empty-icon">📐</div>No hay poligonales guardadas.<br>Toca <strong>+ NUEVA</strong> para empezar.</div>`;
     return;
   }
-  state.computed = computePoligonal(
-    state.points,
-    state.azInicial,
-    state.polyType,
-    state.toleranciaK
-  );
-  saveState();
-  renderResults();
-  // Scroll a resultados
-  setTimeout(() => {
-    document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
-  }, 100);
-}
-
-function renderPointsList() {
-  const section = document.getElementById('points-section');
-  const list = document.getElementById('points-list');
-  if (state.points.length === 0) { section.style.display = 'none'; return; }
-  section.style.display = 'block';
-  list.innerHTML = state.points.map((p, i) => {
-    // Semáforo de verificación
-    let verif = '';
-    if (p.diffDH !== null && p.diffDH !== undefined) {
-      const okDH = p.diffDH <= 0.05;
-      const okDZ = p.diffDZ <= 0.05;
-      verif = `<div class="pt-sub" style="color:${okDH && okDZ ? 'var(--success)' : 'var(--warn)'}">
-        ${okDH ? '✓' : '⚠'} ΔDH=${fmt(p.diffDH,3)}m &nbsp;|&nbsp; ${okDZ ? '✓' : '⚠'} ΔCota=${fmt(p.diffDZ,3)}m
-      </div>`;
-    }
-    const cierreTag = p.esCierre ? `<span style="font-size:9px;color:var(--success);margin-left:6px">🔒CIERRE</span>` : '';
+  div.innerHTML=lista.slice().reverse().map(p=>{
+    const nPts=p.points?p.points.length:0;
+    const prec=p.computed?'1/'+p.computed.precision.toLocaleString():'—';
+    const estado=p.computed?'completada':'en_progreso';
+    const estadoLabel=estado==='completada'?'✓ Completada':'⏳ En progreso';
+    const estadoClass=estado==='completada'?'status-done':'status-prog';
     return `
-    <div class="pt-item">
-      <div class="pt-num">${i + 1}</div>
-      <div style="flex:1; min-width:0">
-        <div class="pt-name">${p.from} → ${p.to}${cierreTag}</div>
-        <div class="pt-sub">
-          🎯 DI=${fmt(p.DI,3)}m &nbsp;|&nbsp; AV=${fmtGMS(p.ZC)} &nbsp;|&nbsp; AH=${fmtGMS(p.beta)}<br>
-          hi=${fmt(p.hi,3)}m &nbsp;|&nbsp; hr=${fmt(p.hr,3)}m
+    <div class="proj-card" onclick="abrirProyecto('${p.id}')">
+      <div class="proj-card-header">
+        <div>
+          <div class="proj-card-name">${p.nombre}</div>
+          <div class="proj-card-type">${p.tipo} · ${p.fechaModificacion}</div>
         </div>
-        ${p.DI_b ? `<div class="pt-sub" style="color:var(--text3)">📡 DI_atrás=${fmt(p.DI_b,3)}m &nbsp;|&nbsp; AV=${fmtGMS(p.ZC_b)}</div>` : ''}
-        ${verif}
+        <button class="proj-del-btn" onclick="event.stopPropagation();eliminarProyecto('${p.id}')">🗑</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
-        <button class="del-btn" style="color:var(--accent);font-size:13px" onclick="openEdit(${i})" title="Editar">✏</button>
-        <button class="del-btn" onclick="removePoint(${i})" title="Eliminar">✕</button>
+      <div class="proj-card-stats">
+        <div class="proj-stat"><div class="lbl">ESTACIONES</div><div class="val">${nPts}</div></div>
+        <div class="proj-stat"><div class="lbl">PRECISIÓN</div><div class="val">${prec}</div></div>
+        <div class="proj-stat"><div class="lbl">IRRADIA</div><div class="val">${p.irradPoints?p.irradPoints.length:0}</div></div>
+      </div>
+      <div class="proj-card-footer">
+        <span class="proj-status ${estadoClass}">${estadoLabel}</span>
+        <span class="proj-date">Mod: ${p.fechaModificacion}</span>
       </div>
     </div>`;
   }).join('');
 }
 
-function renderResults() {
-  const section = document.getElementById('results-section');
-  const content = document.getElementById('results-content');
-  if (!state.computed) { section.style.display = 'none'; return; }
-  section.style.display = 'block';
+function abrirNuevoProyecto(){
+  document.getElementById('nuevo-nombre').value='';
+  document.getElementById('nuevo-tipo').value='cerrada';
+  document.getElementById('nuevo-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('nuevo-nombre').focus(),100);
+}
+function cerrarNuevoModal(){
+  document.getElementById('nuevo-modal').classList.remove('open');
+}
+function crearProyecto(){
+  const nombre=document.getElementById('nuevo-nombre').value.trim();
+  const tipo=document.getElementById('nuevo-tipo').value;
+  if(!nombre){ showToast('⚠ Ingresa un nombre'); return; }
+  proyecto=proyectoVacio(nombre,tipo);
+  guardarProyectoActual();
+  guardarIdActivo(proyecto.id);
+  cerrarNuevoModal();
+  cargarUIProyecto();
+  showScreen('poly');
+}
+function abrirProyecto(id){
+  const lista=cargarProyectos();
+  const p=lista.find(x=>x.id===id);
+  if(!p){ showToast('⚠ Proyecto no encontrado'); return; }
+  proyecto=p;
+  guardarIdActivo(id);
+  cargarUIProyecto();
+  showScreen('poly');
+}
+function eliminarProyecto(id){
+  if(!confirm('¿Eliminar esta poligonal? No se puede deshacer.')) return;
+  let lista=cargarProyectos();
+  lista=lista.filter(p=>p.id!==id);
+  guardarProyectos(lista);
+  if(proyecto&&proyecto.id===id){ proyecto=null; guardarIdActivo(null); }
+  renderProyectos();
+  showToast('🗑 Proyecto eliminado');
+}
+function eliminarProyectoActual(){
+  if(!proyecto){ showToast('⚠ No hay proyecto activo'); return; }
+  eliminarProyecto(proyecto.id);
+  volverAProyectos();
+}
+function volverAProyectos(){
+  proyecto=null;
+  guardarIdActivo(null);
+  showScreen('proyectos');
+}
 
-  const c = state.computed;
-  const prec = c.precision;
+function cargarUIProyecto(){
+  if(!proyecto) return;
+  // Badge
+  document.getElementById('proj-badge').textContent=proyecto.nombre+' ('+proyecto.tipo+')';
+  // Setup form
+  document.getElementById('poly-name-input').value=proyecto.nombre;
+  document.getElementById('poly-type').value=proyecto.tipo;
+  writeGMS('az-ini',proyecto.azInicial||0);
+  document.getElementById('tolerancia-k').value=proyecto.toleranciaK||30;
 
-  let precClass = 'prec-bad';
-  let precIcon = '✗';
-  if (prec >= 5000) { precClass = 'prec-good'; precIcon = '✓'; }
-  else if (prec >= 3000) { precClass = 'prec-good'; precIcon = '✓'; }
-  else if (prec >= 1000) { precClass = 'prec-warn'; precIcon = '~'; }
-
-  const precLabel = prec >= 999990 ? '∞ (perfecto)' : `1 / ${prec.toLocaleString()}`;
-  const calidadLabel = { excelente: 'EXCELENTE', buena: 'BUENA', regular: 'REGULAR', mala: 'INSUFICIENTE' }[c.calidadLineal] || '';
-
-  content.innerHTML = `
-    <div class="tc" style="margin-bottom:14px">
-      <div class="prec-badge ${precClass}">${precIcon} Precisión ${precLabel} — ${calidadLabel}</div>
-    </div>
-
-    <div class="stat-row">
-      <span class="stat-label">Perímetro total</span>
-      <span class="stat-val">${fmt(c.totalLen, 3)} m</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Error cierre N</span>
-      <span class="stat-val">${fmt(c.errN, 4)} m</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Error cierre E</span>
-      <span class="stat-val">${fmt(c.errE, 4)} m</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Error lineal total</span>
-      <span class="stat-val">${fmt(c.errLineal, 4)} m</span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Error altimétrico (ΔZ)</span>
-      <span class="stat-val">${fmt(c.errZ, 4)} m</span>
-    </div>
-    ${c.errAngular !== null ? `
-    <div class="stat-row">
-      <span class="stat-label">Error angular</span>
-      <span class="stat-val" style="color:${c.cierreAngularOk ? 'var(--success)' : 'var(--danger)'}">
-        ${fmtDeg(c.errAngular)} ${c.cierreAngularOk ? '✓' : '✗'}
-      </span>
-    </div>
-    <div class="stat-row">
-      <span class="stat-label">Tolerancia angular (K√n)</span>
-      <span class="stat-val">${fmtDeg(c.tolAngular)}</span>
-    </div>
-    ` : ''}
-
-    <div class="sep"></div>
-    <div class="card-title" style="font-size:9px; color:var(--text3); margin-bottom:8px">TABLA DE AZIMUTES Y DISTANCIAS</div>
-    <div style="overflow-x:auto">
-      <table class="tbl">
-        <thead>
-          <tr>
-            <th>Tramo</th>
-            <th>Az (°)</th>
-            <th>DH (m)</th>
-            <th>ΔN (m)</th>
-            <th>ΔE (m)</th>
-            <th>ΔZ (m)</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${c.results.map(r => `
-            <tr>
-              <td>${r.from}→${r.to}</td>
-              <td class="num">${fmtGMS(r.az)}</td>
-              <td class="num">${fmt(r.DH, 3)}</td>
-              <td class="num">${fmt(r.dN, 3)}</td>
-              <td class="num">${fmt(r.dE, 3)}</td>
-              <td class="num">${fmt(r.DZ, 3)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-
-  // Sección ajuste
-  const adjSection = document.getElementById('adjustment-section');
-  const adjContent = document.getElementById('adjustment-content');
-
-  if (c.calidadLineal === 'mala' || c.calidadLineal === 'regular') {
-    adjSection.style.display = 'block';
-    const bow = ajustarBowditch(c);
-    const tra = ajustarTransito(c);
-    const precBow = precisionTrasAjuste(bow, c.totalLen);
-    const precTra = precisionTrasAjuste(tra, c.totalLen);
-
-    adjContent.innerHTML = `
-      <div class="alert alert-warn">
-        Precisión insuficiente. Aplica un método de ajuste para compensar el error de cierre.
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Bowditch (proporcional a longitud)</span>
-        <span class="stat-val">1/${precBow > 99999 ? '∞' : precBow.toLocaleString()}</span>
-      </div>
-      <div class="stat-row" style="margin-bottom:12px">
-        <span class="stat-label">Tránsito (proporcional a proyección)</span>
-        <span class="stat-val">1/${precTra > 99999 ? '∞' : precTra.toLocaleString()}</span>
-      </div>
-      <div class="row-btns">
-        <button class="btn btn-success btn-sm" onclick="applyAdjustment('bowditch')">APLICAR BOWDITCH</button>
-        <button class="btn btn-warn btn-sm" onclick="applyAdjustment('transito')">APLICAR TRÁNSITO</button>
-      </div>
-    `;
+  if(proyecto.points&&proyecto.points.length>0){
+    document.getElementById('poly-setup-card').style.display='none';
+    document.getElementById('point-form').style.display='block';
+    updateStationTitle();
+    renderPointsList();
+    if(proyecto.computed) renderResults();
+    if(proyecto.adjustedCoords){
+      const adj=proyecto.adjustedCoords.method==='bowditch'
+        ?ajustarBowditch(proyecto.computed)
+        :ajustarTransito(proyecto.computed);
+      renderCoordsSection(adj);
+    }
   } else {
-    adjSection.style.display = 'none';
-    // Precisión buena: mostrar coordenadas ajustadas con Bowditch automáticamente
-    const bow = ajustarBowditch(c);
-    applyAdjustmentData('bowditch', bow);
+    document.getElementById('poly-setup-card').style.display='block';
+    document.getElementById('point-form').style.display='none';
+  }
+
+  // Amarre
+  if(proyecto.knownPoints){
+    const{kp1,kp2}=proyecto.knownPoints;
+    document.getElementById('kp1-name').value=kp1.name;
+    document.getElementById('kp1-n').value=kp1.N;
+    document.getElementById('kp1-e').value=kp1.E;
+    document.getElementById('kp1-z').value=kp1.Z;
+    document.getElementById('kp2-name').value=kp2.name;
+    document.getElementById('kp2-n').value=kp2.N;
+    document.getElementById('kp2-e').value=kp2.E;
+    document.getElementById('kp2-z').value=kp2.Z;
+    if(proyecto.geoCoords) renderAmarreResults();
+  }
+
+  // Irradiación
+  if(proyecto.irradStation){
+    const st=proyecto.irradStation;
+    document.getElementById('ir-st-name').value=st.name||'';
+    document.getElementById('ir-n').value=st.N;
+    document.getElementById('ir-e').value=st.E;
+    document.getElementById('ir-z').value=st.Z;
+    document.getElementById('ir-hi').value=st.hi;
+    document.getElementById('ir-vis-name').value=st.visName||'';
+    document.getElementById('ir-vis-n').value=st.visN||'';
+    document.getElementById('ir-vis-e').value=st.visE||'';
+    const disp=document.getElementById('ir-az-display');
+    disp.style.display='block';
+    disp.textContent=`✓ Az ${st.name}→${st.visName}: ${fmtGMS(st.azOrientacion)}`;
+    document.getElementById('ir-shot-card').style.display='block';
   }
 }
 
-function applyAdjustment(method) {
-  if (!state.computed) return;
-  const adj = method === 'bowditch'
-    ? ajustarBowditch(state.computed)
-    : ajustarTransito(state.computed);
-  applyAdjustmentData(method, adj);
-  showToast(`✓ Ajuste ${method === 'bowditch' ? 'Bowditch' : 'Tránsito'} aplicado`);
+// ═══════════════════════════════════════════════
+//  MÓDULO POLIGONAL
+// ═══════════════════════════════════════════════
+
+function iniciarPoly(){
+  if(!proyecto){ showToast('⚠ Selecciona o crea un proyecto'); return; }
+  proyecto.nombre=document.getElementById('poly-name-input').value.trim()||proyecto.nombre;
+  proyecto.tipo=document.getElementById('poly-type').value;
+  proyecto.azInicial=readGMS('az-ini');
+  proyecto.toleranciaK=parseInt(document.getElementById('tolerancia-k').value)||30;
+  guardarProyectoActual();
+  document.getElementById('proj-badge').textContent=proyecto.nombre+' ('+proyecto.tipo+')';
+  document.getElementById('poly-setup-card').style.display='none';
+  document.getElementById('point-form').style.display='block';
+  updateStationTitle();
 }
 
-function applyAdjustmentData(method, adj) {
-  state.adjustedCoords = {
-    method,
-    coords: adj.map(r => ({ name: r.to, N: r.N_adj, E: r.E_adj, Z: r.Z_adj }))
-  };
-  saveState();
-  renderCoordsSection(adj);
+function resetSetup(){
+  document.getElementById('poly-setup-card').style.display='block';
+  document.getElementById('point-form').style.display='none';
 }
 
-function renderCoordsSection(adj) {
-  const section = document.getElementById('coords-section');
-  const content = document.getElementById('coords-content');
-  section.style.display = 'block';
-  content.innerHTML = adj.map(r => `
-    <div class="coord-box">
-      <div class="coord-name">
-        <span>${r.to}</span>
-        <span style="font-size:9px; color:var(--text3); font-weight:400">${r.from}→${r.to}</span>
-      </div>
-      <div class="coord-vals">
-        <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(r.N_adj, 3)}</div></div>
-        <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(r.E_adj, 3)}</div></div>
-        <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(r.Z_adj, 3)}</div></div>
-      </div>
-    </div>
-  `).join('');
-}
-
-
-// ═══════════════════════════════════════════════════
-//  MÓDULO AMARRE GEODÉSICO
-// ═══════════════════════════════════════════════════
-
-function calcAmarre() {
-  const kp1 = {
-    name: document.getElementById('kp1-name').value.trim() || 'P1',
-    N: parseFloat(document.getElementById('kp1-n').value),
-    E: parseFloat(document.getElementById('kp1-e').value),
-    Z: parseFloat(document.getElementById('kp1-z').value)
-  };
-  const kp2 = {
-    name: document.getElementById('kp2-name').value.trim() || 'P2',
-    N: parseFloat(document.getElementById('kp2-n').value),
-    E: parseFloat(document.getElementById('kp2-e').value),
-    Z: parseFloat(document.getElementById('kp2-z').value)
-  };
-
-  if ([kp1.N, kp1.E, kp1.Z, kp2.N, kp2.E, kp2.Z].some(isNaN)) {
-    showToast('⚠ Completa todas las coordenadas de los dos puntos');
-    return;
-  }
-  if (!state.adjustedCoords || state.adjustedCoords.coords.length === 0) {
-    showToast('⚠ Primero calcula y ajusta la poligonal');
-    return;
-  }
-
-  const { azReal, geoCoords } = calcularAmarre(kp1, kp2, state.adjustedCoords.coords, state.azInicial);
-
-  state.knownPoints = { kp1, kp2 };
-  state.geoCoords = geoCoords;
-  saveState();
-
-  const res = document.getElementById('amarre-results');
-  res.innerHTML = `
-    <div class="card">
-      <div class="card-title">📡 Resultado del amarre</div>
-      <div class="stat-row">
-        <span class="stat-label">Az real ${kp1.name} → ${kp2.name}</span>
-        <span class="stat-val">${fmtDeg(azReal)}</span>
-      </div>
-      <div class="stat-row">
-        <span class="stat-label">Distancia entre puntos conocidos</span>
-        <span class="stat-val">${fmt(Math.sqrt(Math.pow(kp2.N - kp1.N, 2) + Math.pow(kp2.E - kp1.E, 2)), 3)} m</span>
-      </div>
-      <div class="sep"></div>
-      <div class="card-title" style="color:var(--accent2); font-size:9px">COORDENADAS ABSOLUTAS DE LA POLIGONAL</div>
-      ${geoCoords.map(p => `
-        <div class="coord-box">
-          <div class="coord-name">${p.name}</div>
-          <div class="coord-vals">
-            <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(p.N, 3)}</div></div>
-            <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(p.E, 3)}</div></div>
-            <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(p.Z, 3)}</div></div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-  showToast('✓ Amarre calculado');
-}
-
-
-// ═══════════════════════════════════════════════════
-//  MÓDULO IRRADIACIÓN
-// ═══════════════════════════════════════════════════
-
-function saveStation() {
-  const stName = document.getElementById('ir-st-name').value.trim() || 'ST';
-  const N  = parseFloat(document.getElementById('ir-n').value);
-  const E  = parseFloat(document.getElementById('ir-e').value);
-  const Z  = parseFloat(document.getElementById('ir-z').value);
-  const hi = parseFloat(document.getElementById('ir-hi').value) || 1.5;
-
-  const visName = document.getElementById('ir-vis-name').value.trim() || 'VIS';
-  const visN = parseFloat(document.getElementById('ir-vis-n').value);
-  const visE = parseFloat(document.getElementById('ir-vis-e').value);
-
-  if ([N, E, Z].some(isNaN)) { showToast('⚠ Ingresa las coordenadas de la estación'); return; }
-  if (isNaN(visN) || isNaN(visE)) { showToast('⚠ Ingresa N y E del punto visado'); return; }
-
-  // Azimut real estación → visado (orientación automática)
-  const dN = visN - N;
-  const dE = visE - E;
-  const azOrientacion = norm360(toDeg(Math.atan2(dE, dN)));
-
-  state.irradStation = { name: stName, N, E, Z, hi, azOrientacion, visName, visN, visE };
-  saveState();
-
-  // Mostrar azimut calculado
-  const disp = document.getElementById('ir-az-display');
-  disp.style.display = 'block';
-  disp.textContent = `✓ Orientación ${stName} → ${visName}: Az = ${fmt(azOrientacion, 4)}°`;
-
-  // Mostrar formulario de shots
-  document.getElementById('ir-shot-card').style.display = 'block';
-  showToast('✓ Estación guardada — azimut calculado');
-  document.getElementById('ir-pname').focus();
-}
-
-function addIrradPoint() {
-  if (!state.irradStation) {
-    showToast('⚠ Guarda primero la estación y el punto visado');
-    return;
-  }
-
-  const pname = document.getElementById('ir-pname').value.trim() || ('PT-' + (state.irradPoints.length + 1));
-  const desc = document.getElementById('ir-desc').value.trim();
-  const DI = parseFloat(document.getElementById('ir-di').value);
-  const ZC = readGMS('ir-zc');
-  const beta = readGMS('ir-beta');
-  const hr = parseFloat(document.getElementById('ir-hr').value) || 1.5;
-
-  if (isNaN(DI) || DI <= 0) { showToast('⚠ Distancia inclinada inválida'); return; }
-  if (isNaN(ZC) || ZC <= 0 || ZC >= 180) { showToast('⚠ Ángulo vertical inválido'); return; }
-
-  const result = calcularIrradiacion(state.irradStation, { DI, ZC, beta, hr });
-  state.irradPoints.push({ name: pname, desc, DI, ZC, beta, hr, ...result });
-  saveState();
-
-  document.getElementById('ir-pname').value = '';
-  document.getElementById('ir-desc').value = '';
-  document.getElementById('ir-di').value = '';
-  clearGMS('ir-zc');
-  clearGMS('ir-beta');
-
-  renderIrradList();
-  showToast(`✓ ${pname} calculado y guardado`);
-  document.getElementById('ir-pname').focus();
-}
-
-function removeIrrad(i) {
-  state.irradPoints.splice(i, 1);
-  saveState();
-  renderIrradList();
-}
-
-function renderIrradList() {
-  const div = document.getElementById('irrad-list');
-  if (!state.irradPoints || state.irradPoints.length === 0) {
-    div.innerHTML = '';
-    return;
-  }
-  div.innerHTML = `
-    <div class="section-title">PUNTOS CALCULADOS (${state.irradPoints.length})</div>
-    <div class="card" style="padding:8px 14px">
-      ${state.irradPoints.map((p, i) => `
-        <div class="coord-box" style="margin-bottom:6px">
-          <div class="coord-name">
-            <span>${p.name} <span style="font-size:9px; color:var(--text3); font-weight:400">${p.desc || ''}</span></span>
-            <button class="del-btn" onclick="removeIrrad(${i})" title="Eliminar">✕</button>
-          </div>
-          <div class="coord-vals">
-            <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(p.N, 3)}</div></div>
-            <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(p.E, 3)}</div></div>
-            <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(p.Z, 3)}</div></div>
-          </div>
-          <div style="font-size:9px; color:var(--text3); margin-top:5px">
-            Az=${fmtGMS(p.az)} &nbsp;|&nbsp; DH=${fmt(p.DH, 3)}m
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-
-// ═══════════════════════════════════════════════════
-//  EXPORTAR
-// ═══════════════════════════════════════════════════
-
-function renderExportSummary() {
-  const div = document.getElementById('export-summary');
-  const c = state.computed;
-  div.innerHTML = `
-    <div class="stat-row"><span class="stat-label">Poligonal</span><span class="stat-val">${state.polyName || '—'} (${state.polyType})</span></div>
-    <div class="stat-row"><span class="stat-label">Puntos ingresados</span><span class="stat-val">${state.points.length}</span></div>
-    <div class="stat-row"><span class="stat-label">Precisión</span><span class="stat-val">${c ? '1/' + c.precision.toLocaleString() : '—'}</span></div>
-    <div class="stat-row"><span class="stat-label">Ajuste aplicado</span><span class="stat-val">${state.adjustedCoords ? state.adjustedCoords.method : '—'}</span></div>
-    <div class="stat-row"><span class="stat-label">Amarre geodésico</span><span class="stat-val">${state.knownPoints ? '✓ Aplicado' : 'No'}</span></div>
-    <div class="stat-row"><span class="stat-label">Puntos de detalle</span><span class="stat-val">${state.irradPoints.length}</span></div>
-  `;
-}
-
-function downloadCSV(content, filename) {
-  const BOM = '\uFEFF'; // Para compatibilidad con Excel (caracteres especiales)
-  const blob = new Blob([BOM + content], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-function exportCSV(type) {
-  const prefix = state.polyName || 'topofield';
-  let csv = '';
-
-  if (type === 'observaciones' || type === 'todo') {
-    if (!state.computed) { showToast('⚠ No hay poligonal calculada'); if (type !== 'todo') return; }
-    else {
-      csv += type === 'todo' ? `OBSERVACIONES POLIGONAL - ${prefix}\n` : '';
-      csv += 'Punto_DE,Punto_A,DI_m,ZC_deg,Beta_deg,hi_m,hr_m,DH_m,DZ_m,Az_deg,dN_m,dE_m,N_acum_m,E_acum_m,Z_acum_m\n';
-      csv += state.computed.results.map(r =>
-        `${r.from},${r.to},${fmt(r.DI,4)},${fmt(r.ZC,4)},${fmt(r.beta,4)},${fmt(r.hi,4)},${fmt(r.hr,4)},${fmt(r.DH,4)},${fmt(r.DZ,4)},${fmt(r.az,4)},${fmt(r.dN,4)},${fmt(r.dE,4)},${fmt(r.N_acum,4)},${fmt(r.E_acum,4)},${fmt(r.Z_acum,4)}`
-      ).join('\n');
-      if (type !== 'todo') { downloadCSV(csv, `${prefix}_observaciones.csv`); showToast('✓ CSV exportado'); return; }
-      csv += '\n\n';
-    }
-  }
-
-  if (type === 'coordenadas' || type === 'todo') {
-    const coords = state.geoCoords || (state.adjustedCoords ? state.adjustedCoords.coords : null);
-    if (!coords) { showToast('⚠ No hay coordenadas calculadas'); if (type !== 'todo') return; }
-    else {
-      csv += type === 'todo' ? `COORDENADAS - ${prefix}\n` : '';
-      csv += 'Punto,N_m,E_m,Z_m,Tipo\n';
-      csv += coords.map(p => {
-        const tipo = state.geoCoords ? 'absoluta' : 'relativa';
-        return `${p.name},${fmt(p.N,4)},${fmt(p.E,4)},${fmt(p.Z,4)},${tipo}`;
-      }).join('\n');
-      if (type !== 'todo') { downloadCSV(csv, `${prefix}_coordenadas.csv`); showToast('✓ CSV exportado'); return; }
-      csv += '\n\n';
-    }
-  }
-
-  if (type === 'irradiacion' || type === 'todo') {
-    if (!state.irradPoints || state.irradPoints.length === 0) {
-      showToast('⚠ No hay puntos de irradiación');
-      if (type !== 'todo') return;
-    } else {
-      csv += type === 'todo' ? `IRRADIACIÓN - ${prefix}\n` : '';
-      csv += 'Nombre,Descripcion,N_m,E_m,Z_m,Az_deg,DH_m,DI_m,ZC_deg,Beta_deg,hr_m\n';
-      csv += state.irradPoints.map(p =>
-        `${p.name},${p.desc || ''},${fmt(p.N,4)},${fmt(p.E,4)},${fmt(p.Z,4)},${fmt(p.az,4)},${fmt(p.DH,4)},${fmt(p.DI,4)},${fmt(p.ZC,4)},${fmt(p.beta,4)},${fmt(p.hr,4)}`
-      ).join('\n');
-      if (type !== 'todo') { downloadCSV(csv, `${prefix}_irradiacion.csv`); showToast('✓ CSV exportado'); return; }
-    }
-  }
-
-  if (type === 'todo' && csv) {
-    downloadCSV(csv, `${prefix}_completo.csv`);
-    showToast('✓ Archivo completo exportado');
+function updateStationTitle(){
+  if(!proyecto) return;
+  const n=proyecto.points.length;
+  document.getElementById('station-title').textContent=`📍 Estación ${n+1}`;
+  if(n>0){
+    const last=proyecto.points[n-1];
+    document.getElementById('pt-from').value=last.to;
   }
 }
 
-function exportJSON() {
-  const data = JSON.stringify(state, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${state.polyName || 'topofield'}_backup_${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast('✓ Backup JSON guardado');
-}
+function addPoint(){
+  if(!proyecto){ showToast('⚠ No hay proyecto activo'); return; }
+  const from=document.getElementById('pt-from').value.trim();
+  const to=document.getElementById('pt-to').value.trim();
+  if(!from||!to){ showToast('⚠ Ingresa estación y punto adelante'); return; }
 
-function clearAllData() {
-  if (!confirm('¿Seguro que deseas borrar TODOS los datos? Esta acción no se puede deshacer.')) return;
-  localStorage.removeItem(STORAGE_KEY);
-  state = {
-    polyName: '', polyType: 'cerrada', azInicial: 0, toleranciaK: 30,
-    points: [], computed: null, adjustedCoords: null, geoCoords: null,
-    knownPoints: null, irradStation: null, irradPoints: []
-  };
-  showToast('🗑 Datos borrados');
-  setTimeout(() => location.reload(), 1000);
-}
+  // Atrás
+  const DI_b=parseFloat(document.getElementById('pt-di-b').value);
+  const ZC_b=readGMS('pt-zc-b');
+  const hr_b=parseFloat(document.getElementById('pt-hr-b').value)||1.5;
 
+  // Adelante
+  const DI=parseFloat(document.getElementById('pt-di').value);
+  const ZC=readGMS('pt-zc');
+  const beta=readGMS('pt-beta');
+  const hi=parseFloat(document.getElementById('pt-hi').value)||1.5;
+  const hr=parseFloat(document.getElementById('pt-hr').value)||1.5;
 
-// ═══════════════════════════════════════════════════
-//  INICIALIZACIÓN
-// ═══════════════════════════════════════════════════
+  if(isNaN(DI)||DI<=0){ showToast('⚠ DI adelante inválida'); return; }
+  if(isNaN(ZC)||ZC<=0||ZC>=180){ showToast('⚠ AV adelante inválido (0°-180°)'); return; }
 
-loadState();
-updatePolyBadge();
+  // Verificación ida vs vuelta
+  let diffDH=null, diffDZ=null;
+  if(proyecto.points.length>0&&!isNaN(DI_b)&&DI_b>0&&!isNaN(ZC_b)&&ZC_b>0){
+    const prev=proyecto.points[proyecto.points.length-1];
+    const DH_fwd=calcDH(prev.DI,prev.ZC);
+    const DH_bck=calcDH(DI_b,ZC_b);
+    const DZ_fwd=calcDZ(prev.DI,prev.ZC,prev.hi,prev.hr);
+    const DZ_bck=calcDZ(DI_b,ZC_b,hi,hr_b);
+    diffDH=Math.abs(DH_fwd-DH_bck);
+    diffDZ=Math.abs(DZ_fwd+DZ_bck);
+  }
 
-// Restaurar UI si hay datos guardados
-if (state.polyName) {
-  document.getElementById('poly-name-input').value = state.polyName;
-  document.getElementById('poly-type').value = state.polyType;
-  writeGMS('az-ini', state.azInicial || 0);
-  document.getElementById('tolerancia-k').value = state.toleranciaK;
+  const esCierre=proyecto.points.length>=2&&
+    to.trim().toUpperCase()===proyecto.points[0].from.trim().toUpperCase();
 
-  document.getElementById('poly-setup-card').style.display = 'none';
-  document.getElementById('point-form').style.display = 'block';
+  proyecto.points.push({from,to,DI,ZC,beta,hi,hr,DI_b,ZC_b,hr_b,diffDH,diffDZ,esCierre});
+  proyecto.computed=null;
+  proyecto.adjustedCoords=null;
+  guardarProyectoActual();
+
+  // Limpiar
+  document.getElementById('pt-to').value='';
+  document.getElementById('pt-di-b').value='';
+  clearGMS('pt-zc-b');
+  document.getElementById('pt-hr-b').value='1.500';
+  document.getElementById('pt-di').value='';
+  clearGMS('pt-zc');
+  clearGMS('pt-beta');
+  document.getElementById('pt-hr').value='1.500';
+
   updateStationTitle();
   renderPointsList();
 
-  if (state.computed) {
-    renderResults();
-    if (state.adjustedCoords) {
-      const adj = state.adjustedCoords.method === 'bowditch'
-        ? ajustarBowditch(state.computed)
-        : ajustarTransito(state.computed);
-      renderCoordsSection(adj);
+  if(diffDH!==null){
+    const okDH=diffDH<=0.05, okDZ=diffDZ<=0.05;
+    showToast(`${okDH?'✓':'⚠'} ΔDH=${fmt(diffDH,3)}m  ${okDZ?'✓':'⚠'} ΔCota=${fmt(diffDZ,3)}m`,4000);
+  } else {
+    showToast(`✓ Estación ${from}→${to} agregada`);
+  }
+
+  if(esCierre){
+    setTimeout(()=>{ showToast('🔒 Cierre detectado — calculando...',2500); setTimeout(closePoly,1500); },500);
+  }
+}
+
+function removePoint(i){
+  if(!confirm(`¿Eliminar estación ${proyecto.points[i].from}→${proyecto.points[i].to}?`)) return;
+  proyecto.points.splice(i,1);
+  proyecto.computed=null;
+  proyecto.adjustedCoords=null;
+  guardarProyectoActual();
+  renderPointsList();
+  updateStationTitle();
+  document.getElementById('results-section').style.display='none';
+}
+
+function openEdit(i){
+  const p=proyecto.points[i];
+  document.getElementById('edit-idx').value=i;
+  document.getElementById('edit-from').value=p.from;
+  document.getElementById('edit-to').value=p.to;
+  document.getElementById('edit-hi').value=p.hi;
+  document.getElementById('edit-di-b').value=p.DI_b||'';
+  if(p.ZC_b) writeGMS('edit-zc-b',p.ZC_b); else clearGMS('edit-zc-b');
+  document.getElementById('edit-hr-b').value=p.hr_b||1.5;
+  document.getElementById('edit-di').value=p.DI;
+  writeGMS('edit-zc',p.ZC);
+  writeGMS('edit-beta',p.beta);
+  document.getElementById('edit-hr').value=p.hr;
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEdit(){
+  document.getElementById('edit-modal').classList.remove('open');
+}
+function saveEdit(){
+  const i=parseInt(document.getElementById('edit-idx').value);
+  const from=document.getElementById('edit-from').value.trim();
+  const to=document.getElementById('edit-to').value.trim();
+  const hi=parseFloat(document.getElementById('edit-hi').value)||1.5;
+  const DI_b=parseFloat(document.getElementById('edit-di-b').value);
+  const ZC_b=readGMS('edit-zc-b');
+  const hr_b=parseFloat(document.getElementById('edit-hr-b').value)||1.5;
+  const DI=parseFloat(document.getElementById('edit-di').value);
+  const ZC=readGMS('edit-zc');
+  const beta=readGMS('edit-beta');
+  const hr=parseFloat(document.getElementById('edit-hr').value)||1.5;
+  if(!from||!to){ showToast('⚠ Nombres requeridos'); return; }
+  if(isNaN(DI)||DI<=0){ showToast('⚠ DI adelante inválida'); return; }
+  if(isNaN(ZC)||ZC<=0||ZC>=180){ showToast('⚠ AV adelante inválido'); return; }
+  let diffDH=null, diffDZ=null;
+  if(i>0&&!isNaN(DI_b)&&DI_b>0&&!isNaN(ZC_b)&&ZC_b>0){
+    const prev=proyecto.points[i-1];
+    diffDH=Math.abs(calcDH(prev.DI,prev.ZC)-calcDH(DI_b,ZC_b));
+    diffDZ=Math.abs(calcDZ(prev.DI,prev.ZC,prev.hi,prev.hr)+calcDZ(DI_b,ZC_b,hi,hr_b));
+  }
+  const esCierre=i>=2&&to.trim().toUpperCase()===proyecto.points[0].from.trim().toUpperCase();
+  proyecto.points[i]={from,to,DI,ZC,beta,hi,hr,DI_b,ZC_b,hr_b,diffDH,diffDZ,esCierre};
+  proyecto.computed=null; proyecto.adjustedCoords=null;
+  guardarProyectoActual();
+  closeEdit();
+  renderPointsList();
+  showToast('✓ Estación actualizada');
+}
+
+function renderPointsList(){
+  const section=document.getElementById('points-section');
+  const list=document.getElementById('points-list');
+  if(!proyecto||proyecto.points.length===0){ section.style.display='none'; return; }
+  section.style.display='block';
+  list.innerHTML=proyecto.points.map((p,i)=>{
+    let verif='';
+    if(p.diffDH!==null&&p.diffDH!==undefined){
+      const okDH=p.diffDH<=0.05, okDZ=p.diffDZ<=0.05;
+      verif=`<div class="pt-sub" style="color:${okDH&&okDZ?'var(--success)':'var(--warn)'}">
+        ${okDH?'✓':'⚠'} ΔDH=${fmt(p.diffDH,3)}m &nbsp;|&nbsp; ${okDZ?'✓':'⚠'} ΔCota=${fmt(p.diffDZ,3)}m
+      </div>`;
+    }
+    const cierreTag=p.esCierre?`<span style="font-size:9px;color:var(--success);margin-left:6px">🔒CIERRE</span>`:'';
+    return `<div class="pt-item">
+      <div class="pt-num">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div class="pt-name">${p.from} → ${p.to}${cierreTag}</div>
+        <div class="pt-sub">🎯 DI=${fmt(p.DI,3)}m | AV=${fmtGMS(p.ZC)} | AH=${fmtGMS(p.beta)}<br>
+        hi=${fmt(p.hi,3)}m | hr=${fmt(p.hr,3)}m</div>
+        ${p.DI_b?`<div class="pt-sub" style="color:var(--text3)">📡 DI_atrás=${fmt(p.DI_b,3)}m | AV=${fmtGMS(p.ZC_b)}</div>`:''}
+        ${verif}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        <button class="del-btn" style="color:var(--accent);font-size:13px" onclick="openEdit(${i})">✏</button>
+        <button class="del-btn" onclick="removePoint(${i})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function closePoly(){
+  if(!proyecto||proyecto.points.length<2){ showToast('⚠ Mínimo 2 estaciones'); return; }
+  proyecto.computed=computePoligonal(proyecto.points,proyecto.azInicial,proyecto.tipo,proyecto.toleranciaK);
+  guardarProyectoActual();
+  renderResults();
+  setTimeout(()=>document.getElementById('results-section').scrollIntoView({behavior:'smooth'}),100);
+}
+
+function renderResults(){
+  const section=document.getElementById('results-section');
+  const content=document.getElementById('results-content');
+  if(!proyecto||!proyecto.computed){ section.style.display='none'; return; }
+  section.style.display='block';
+  const c=proyecto.computed;
+  const prec=c.precision;
+  let precClass='prec-bad',precIcon='✗';
+  if(prec>=5000||prec>=3000){ precClass='prec-good'; precIcon='✓'; }
+  else if(prec>=1000){ precClass='prec-warn'; precIcon='~'; }
+  const calidadLabel={excelente:'EXCELENTE',buena:'BUENA',regular:'REGULAR',mala:'INSUFICIENTE'}[c.calidadLineal]||'';
+  const precLabel=prec>=999990?'∞ (perfecto)':`1 / ${prec.toLocaleString()}`;
+
+  content.innerHTML=`
+    <div class="tc" style="margin-bottom:14px">
+      <div class="prec-badge ${precClass}">${precIcon} Precisión ${precLabel} — ${calidadLabel}</div>
+    </div>
+    <div class="stat-row"><span class="stat-label">Perímetro total</span><span class="stat-val">${fmt(c.totalLen,3)} m</span></div>
+    <div class="stat-row"><span class="stat-label">Error cierre N</span><span class="stat-val">${fmt(c.errN,4)} m</span></div>
+    <div class="stat-row"><span class="stat-label">Error cierre E</span><span class="stat-val">${fmt(c.errE,4)} m</span></div>
+    <div class="stat-row"><span class="stat-label">Error lineal total</span><span class="stat-val">${fmt(c.errLineal,4)} m</span></div>
+    <div class="stat-row"><span class="stat-label">Error altimétrico (ΔZ)</span><span class="stat-val">${fmt(c.errZ,4)} m</span></div>
+    ${c.errAngular!==null?`
+    <div class="stat-row"><span class="stat-label">Error angular</span>
+      <span class="stat-val" style="color:${c.cierreAngularOk?'var(--success)':'var(--danger)'}">
+        ${fmtGMS(c.errAngular)} ${c.cierreAngularOk?'✓':'✗'}
+      </span></div>
+    <div class="stat-row"><span class="stat-label">Tolerancia K√n</span><span class="stat-val">${fmtGMS(c.tolAngular)}</span></div>`:''}
+    <div class="sep"></div>
+    <div style="font-size:9px;color:var(--text3);margin-bottom:8px;letter-spacing:1px">TABLA DE AZIMUTES Y DISTANCIAS</div>
+    <div style="overflow-x:auto">
+      <table class="tbl">
+        <thead><tr><th>Tramo</th><th>Az</th><th>DH(m)</th><th>ΔN(m)</th><th>ΔE(m)</th><th>ΔZ(m)</th></tr></thead>
+        <tbody>${c.results.map(r=>`<tr>
+          <td>${r.from}→${r.to}</td>
+          <td class="num">${fmtGMS(r.az)}</td>
+          <td class="num">${fmt(r.DH,3)}</td>
+          <td class="num">${fmt(r.dN,3)}</td>
+          <td class="num">${fmt(r.dE,3)}</td>
+          <td class="num">${fmt(r.DZ,3)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+
+  const adjSection=document.getElementById('adjustment-section');
+  const adjContent=document.getElementById('adjustment-content');
+  if(c.calidadLineal==='mala'||c.calidadLineal==='regular'){
+    adjSection.style.display='block';
+    const bow=ajustarBowditch(c), tra=ajustarTransito(c);
+    const pB=precisionTrasAjuste(bow,c.totalLen), pT=precisionTrasAjuste(tra,c.totalLen);
+    adjContent.innerHTML=`
+      <div class="alert alert-warn">Precisión insuficiente. Aplica un ajuste para compensar el error de cierre.</div>
+      <div class="stat-row"><span class="stat-label">Bowditch (proporcional a longitud)</span><span class="stat-val">1/${pB>99999?'∞':pB.toLocaleString()}</span></div>
+      <div class="stat-row" style="margin-bottom:12px"><span class="stat-label">Tránsito (proporcional a proyección)</span><span class="stat-val">1/${pT>99999?'∞':pT.toLocaleString()}</span></div>
+      <div class="row-btns">
+        <button class="btn btn-success btn-sm" onclick="applyAdjustment('bowditch')">APLICAR BOWDITCH</button>
+        <button class="btn btn-warn btn-sm" onclick="applyAdjustment('transito')">APLICAR TRÁNSITO</button>
+      </div>`;
+  } else {
+    adjSection.style.display='none';
+    applyAdjustmentData('bowditch',ajustarBowditch(c));
+  }
+}
+
+function applyAdjustment(method){
+  if(!proyecto||!proyecto.computed) return;
+  const adj=method==='bowditch'?ajustarBowditch(proyecto.computed):ajustarTransito(proyecto.computed);
+  applyAdjustmentData(method,adj);
+  showToast(`✓ Ajuste ${method==='bowditch'?'Bowditch':'Tránsito'} aplicado`);
+}
+function applyAdjustmentData(method,adj){
+  proyecto.adjustedCoords={method,coords:adj.map(r=>({name:r.to,N:r.N_adj,E:r.E_adj,Z:r.Z_adj}))};
+  guardarProyectoActual();
+  renderCoordsSection(adj);
+}
+function renderCoordsSection(adj){
+  const section=document.getElementById('coords-section');
+  const content=document.getElementById('coords-content');
+  section.style.display='block';
+  content.innerHTML=adj.map(r=>`
+    <div class="coord-box">
+      <div class="coord-name"><span>${r.to}</span><span style="font-size:9px;color:var(--text3);font-weight:400">${r.from}→${r.to}</span></div>
+      <div class="coord-vals">
+        <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(r.N_adj,3)}</div></div>
+        <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(r.E_adj,3)}</div></div>
+        <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(r.Z_adj,3)}</div></div>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════
+//  AMARRE GEODÉSICO
+// ═══════════════════════════════════════════════
+
+function calcAmarre(){
+  if(!proyecto){ showToast('⚠ No hay proyecto activo'); return; }
+  const kp1={name:document.getElementById('kp1-name').value.trim()||'P1',
+    N:parseFloat(document.getElementById('kp1-n').value),
+    E:parseFloat(document.getElementById('kp1-e').value),
+    Z:parseFloat(document.getElementById('kp1-z').value)};
+  const kp2={name:document.getElementById('kp2-name').value.trim()||'P2',
+    N:parseFloat(document.getElementById('kp2-n').value),
+    E:parseFloat(document.getElementById('kp2-e').value),
+    Z:parseFloat(document.getElementById('kp2-z').value)};
+  if([kp1.N,kp1.E,kp1.Z,kp2.N,kp2.E,kp2.Z].some(isNaN)){ showToast('⚠ Completa todas las coordenadas'); return; }
+  if(!proyecto.adjustedCoords||!proyecto.adjustedCoords.coords.length){ showToast('⚠ Primero calcula y ajusta la poligonal'); return; }
+  const dN=kp2.N-kp1.N, dE=kp2.E-kp1.E;
+  const azReal=norm360(toDeg(Math.atan2(dE,dN)));
+  const rotAngle=toRad(azReal-(proyecto.azInicial||0));
+  const cosR=Math.cos(rotAngle), sinR=Math.sin(rotAngle);
+  const geoCoords=proyecto.adjustedCoords.coords.map(p=>({
+    name:p.name,
+    N:kp1.N+(p.N*cosR-p.E*sinR),
+    E:kp1.E+(p.N*sinR+p.E*cosR),
+    Z:kp1.Z+p.Z
+  }));
+  proyecto.knownPoints={kp1,kp2};
+  proyecto.geoCoords=geoCoords;
+  guardarProyectoActual();
+  renderAmarreResults();
+  showToast('✓ Amarre calculado');
+}
+
+function renderAmarreResults(){
+  if(!proyecto||!proyecto.geoCoords) return;
+  const{kp1,kp2}=proyecto.knownPoints;
+  const dN=kp2.N-kp1.N, dE=kp2.E-kp1.E;
+  const azReal=norm360(toDeg(Math.atan2(dE,dN)));
+  const dist=Math.sqrt(dN*dN+dE*dE);
+  document.getElementById('amarre-results').innerHTML=`
+    <div class="card">
+      <div class="card-title">📡 Resultado del amarre</div>
+      <div class="stat-row"><span class="stat-label">Az real ${kp1.name}→${kp2.name}</span><span class="stat-val">${fmtGMS(azReal)}</span></div>
+      <div class="stat-row"><span class="stat-label">Distancia entre puntos</span><span class="stat-val">${fmt(dist,3)} m</span></div>
+      <div class="sep"></div>
+      <div style="font-size:9px;color:var(--text3);margin-bottom:8px;letter-spacing:1px">COORDENADAS ABSOLUTAS</div>
+      ${proyecto.geoCoords.map(p=>`
+        <div class="coord-box">
+          <div class="coord-name">${p.name}</div>
+          <div class="coord-vals">
+            <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(p.N,3)}</div></div>
+            <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(p.E,3)}</div></div>
+            <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(p.Z,3)}</div></div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  IRRADIACIÓN
+// ═══════════════════════════════════════════════
+
+function saveStation(){
+  if(!proyecto){ showToast('⚠ No hay proyecto activo'); return; }
+  const name=document.getElementById('ir-st-name').value.trim()||'ST';
+  const N=parseFloat(document.getElementById('ir-n').value);
+  const E=parseFloat(document.getElementById('ir-e').value);
+  const Z=parseFloat(document.getElementById('ir-z').value);
+  const hi=parseFloat(document.getElementById('ir-hi').value)||1.5;
+  const visName=document.getElementById('ir-vis-name').value.trim()||'VIS';
+  const visN=parseFloat(document.getElementById('ir-vis-n').value);
+  const visE=parseFloat(document.getElementById('ir-vis-e').value);
+  if([N,E,Z].some(isNaN)){ showToast('⚠ Ingresa coordenadas de la estación'); return; }
+  if(isNaN(visN)||isNaN(visE)){ showToast('⚠ Ingresa N y E del punto visado'); return; }
+  const azOrientacion=norm360(toDeg(Math.atan2(visE-E,visN-N)));
+  proyecto.irradStation={name,N,E,Z,hi,azOrientacion,visName,visN,visE};
+  guardarProyectoActual();
+  const disp=document.getElementById('ir-az-display');
+  disp.style.display='block';
+  disp.textContent=`✓ Az ${name}→${visName}: ${fmtGMS(azOrientacion)}`;
+  document.getElementById('ir-shot-card').style.display='block';
+  showToast('✓ Estación guardada');
+}
+
+function addIrradPoint(){
+  if(!proyecto||!proyecto.irradStation){ showToast('⚠ Guarda primero la estación'); return; }
+  const st=proyecto.irradStation;
+  const pname=document.getElementById('ir-pname').value.trim()||('PT-'+(proyecto.irradPoints.length+1));
+  const desc=document.getElementById('ir-desc').value.trim();
+  const DI=parseFloat(document.getElementById('ir-di').value);
+  const ZC=readGMS('ir-zc');
+  const beta=readGMS('ir-beta');
+  const hr=parseFloat(document.getElementById('ir-hr').value)||1.5;
+  if(isNaN(DI)||DI<=0){ showToast('⚠ DI inválida'); return; }
+  if(isNaN(ZC)||ZC<=0||ZC>=180){ showToast('⚠ AV inválido'); return; }
+  const DH=calcDH(DI,ZC);
+  const DZ=calcDZ(DI,ZC,st.hi,hr);
+  const az=norm360(st.azOrientacion+beta);
+  const N=st.N+calcDN(DH,az);
+  const E=st.E+calcDE(DH,az);
+  const Z=st.Z+DZ;
+  proyecto.irradPoints.push({name:pname,desc,DI,ZC,beta,hr,DH,az,N,E,Z});
+  guardarProyectoActual();
+  document.getElementById('ir-pname').value='';
+  document.getElementById('ir-desc').value='';
+  document.getElementById('ir-di').value='';
+  clearGMS('ir-zc');
+  clearGMS('ir-beta');
+  renderIrradList();
+  showToast(`✓ ${pname} calculado`);
+  document.getElementById('ir-pname').focus();
+}
+function removeIrrad(i){
+  proyecto.irradPoints.splice(i,1);
+  guardarProyectoActual();
+  renderIrradList();
+}
+function renderIrradList(){
+  const div=document.getElementById('irrad-list');
+  if(!proyecto||!proyecto.irradPoints||proyecto.irradPoints.length===0){ div.innerHTML=''; return; }
+  div.innerHTML=`
+    <div style="font-size:9px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:14px 0 8px">PUNTOS CALCULADOS (${proyecto.irradPoints.length})</div>
+    <div class="card" style="padding:8px 14px">
+      ${proyecto.irradPoints.map((p,i)=>`
+        <div class="coord-box" style="margin-bottom:6px">
+          <div class="coord-name">
+            <span>${p.name} <span style="font-size:9px;color:var(--text3);font-weight:400">${p.desc||''}</span></span>
+            <button class="del-btn" onclick="removeIrrad(${i})">✕</button>
+          </div>
+          <div class="coord-vals">
+            <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(p.N,3)}</div></div>
+            <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(p.E,3)}</div></div>
+            <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(p.Z,3)}</div></div>
+          </div>
+          <div style="font-size:9px;color:var(--text3);margin-top:5px">Az=${fmtGMS(p.az)} | DH=${fmt(p.DH,3)}m</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  EXPORTAR
+// ═══════════════════════════════════════════════
+
+function renderExportSummary(){
+  if(!proyecto){ document.getElementById('export-summary').innerHTML='<div style="color:var(--text3);font-size:11px">Sin proyecto activo</div>'; return; }
+  const c=proyecto.computed;
+  document.getElementById('export-summary').innerHTML=`
+    <div class="stat-row"><span class="stat-label">Proyecto</span><span class="stat-val">${proyecto.nombre} (${proyecto.tipo})</span></div>
+    <div class="stat-row"><span class="stat-label">Estaciones</span><span class="stat-val">${proyecto.points.length}</span></div>
+    <div class="stat-row"><span class="stat-label">Precisión</span><span class="stat-val">${c?'1/'+c.precision.toLocaleString():'—'}</span></div>
+    <div class="stat-row"><span class="stat-label">Ajuste</span><span class="stat-val">${proyecto.adjustedCoords?proyecto.adjustedCoords.method:'—'}</span></div>
+    <div class="stat-row"><span class="stat-label">Amarre</span><span class="stat-val">${proyecto.knownPoints?'✓ Aplicado':'No'}</span></div>
+    <div class="stat-row"><span class="stat-label">Puntos de detalle</span><span class="stat-val">${proyecto.irradPoints?proyecto.irradPoints.length:0}</span></div>`;
+}
+
+function downloadCSV(content,filename){
+  const blob=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV(type){
+  if(!proyecto){ showToast('⚠ No hay proyecto activo'); return; }
+  const prefix=proyecto.nombre||'poligonal';
+  let csv='';
+  if((type==='observaciones'||type==='todo')&&proyecto.computed){
+    csv+=type==='todo'?`OBSERVACIONES - ${prefix}\n`:'';
+    csv+='Tramo,DI_m,AV_deg,AH_deg,hi_m,hr_m,DH_m,DZ_m,Az_deg,dN_m,dE_m\n';
+    csv+=proyecto.computed.results.map(r=>
+      `${r.from}→${r.to},${fmt(r.DI,4)},${fmtGMS(r.ZC)},${fmtGMS(r.beta)},${fmt(r.hi,4)},${fmt(r.hr,4)},${fmt(r.DH,4)},${fmt(r.DZ,4)},${fmtGMS(r.az)},${fmt(r.dN,4)},${fmt(r.dE,4)}`
+    ).join('\n');
+    if(type!=='todo'){ downloadCSV(csv,`${prefix}_observaciones.csv`); showToast('✓ Exportado'); return; }
+    csv+='\n\n';
+  }
+  if((type==='coordenadas'||type==='todo')&&(proyecto.geoCoords||proyecto.adjustedCoords)){
+    const coords=proyecto.geoCoords||(proyecto.adjustedCoords?proyecto.adjustedCoords.coords:null);
+    if(coords){
+      csv+=type==='todo'?`COORDENADAS - ${prefix}\n`:'';
+      csv+='Punto,N_m,E_m,Z_m,Tipo\n';
+      csv+=coords.map(p=>`${p.name},${fmt(p.N,4)},${fmt(p.E,4)},${fmt(p.Z,4)},${proyecto.geoCoords?'absoluta':'relativa'}`).join('\n');
+      if(type!=='todo'){ downloadCSV(csv,`${prefix}_coordenadas.csv`); showToast('✓ Exportado'); return; }
+      csv+='\n\n';
     }
   }
-}
-
-if (state.irradStation) {
-  const st = state.irradStation;
-  document.getElementById('ir-st-name').value = st.name || '';
-  document.getElementById('ir-n').value = st.N;
-  document.getElementById('ir-e').value = st.E;
-  document.getElementById('ir-z').value = st.Z;
-  document.getElementById('ir-hi').value = st.hi;
-  document.getElementById('ir-vis-name').value = st.visName || '';
-  document.getElementById('ir-vis-n').value = st.visN || '';
-  document.getElementById('ir-vis-e').value = st.visE || '';
-  const disp = document.getElementById('ir-az-display');
-  if (disp) {
-    disp.style.display = 'block';
-    disp.textContent = '✓ Orientación ' + st.name + ' → ' + st.visName + ': Az = ' + st.azOrientacion.toFixed(4) + '°';
+  if((type==='irradiacion'||type==='todo')&&proyecto.irradPoints&&proyecto.irradPoints.length>0){
+    csv+=type==='todo'?`IRRADIACIÓN - ${prefix}\n`:'';
+    csv+='Nombre,Descripcion,N_m,E_m,Z_m,Az,DH_m\n';
+    csv+=proyecto.irradPoints.map(p=>`${p.name},${p.desc||''},${fmt(p.N,4)},${fmt(p.E,4)},${fmt(p.Z,4)},${fmtGMS(p.az)},${fmt(p.DH,4)}`).join('\n');
+    if(type!=='todo'){ downloadCSV(csv,`${prefix}_irradiacion.csv`); showToast('✓ Exportado'); return; }
   }
-  const shotCard = document.getElementById('ir-shot-card');
-  if (shotCard) shotCard.style.display = 'block';
+  if(type==='todo'&&csv){ downloadCSV(csv,`${prefix}_completo.csv`); showToast('✓ Archivo completo exportado'); }
+  else if(type==='todo') showToast('⚠ No hay datos para exportar');
 }
 
-if (state.knownPoints) {
-  const { kp1, kp2 } = state.knownPoints;
-  document.getElementById('kp1-name').value = kp1.name;
-  document.getElementById('kp1-n').value = kp1.N;
-  document.getElementById('kp1-e').value = kp1.E;
-  document.getElementById('kp1-z').value = kp1.Z;
-  document.getElementById('kp2-name').value = kp2.name;
-  document.getElementById('kp2-n').value = kp2.N;
-  document.getElementById('kp2-e').value = kp2.E;
-  document.getElementById('kp2-z').value = kp2.Z;
+function exportJSON(){
+  if(!proyecto){ showToast('⚠ No hay proyecto activo'); return; }
+  const blob=new Blob([JSON.stringify(proyecto,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`${proyecto.nombre}_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click(); URL.revokeObjectURL(url);
+  showToast('✓ Backup guardado');
 }
 
-renderIrradList();
+// ═══════════════════════════════════════════════
+//  INICIALIZACIÓN
+// ═══════════════════════════════════════════════
+
+(function init(){
+  // Migrar datos viejos si existen
+  const viejoKey='topofield_v3';
+  const viejo=localStorage.getItem(viejoKey);
+  if(viejo){
+    try{
+      const d=JSON.parse(viejo);
+      if(d.polyName&&d.points&&d.points.length>0){
+        const migrado=proyectoVacio(d.polyName||'Migrado',d.polyType||'cerrada');
+        migrado.azInicial=d.azInicial||0;
+        migrado.toleranciaK=d.toleranciaK||30;
+        migrado.points=d.points||[];
+        migrado.computed=d.computed||null;
+        migrado.adjustedCoords=d.adjustedCoords||null;
+        migrado.geoCoords=d.geoCoords||null;
+        migrado.knownPoints=d.knownPoints||null;
+        migrado.irradStation=d.irradStation||null;
+        migrado.irradPoints=d.irradPoints||[];
+        const lista=cargarProyectos();
+        lista.push(migrado);
+        guardarProyectos(lista);
+        localStorage.removeItem(viejoKey);
+      }
+    }catch(e){}
+  }
+
+  // Intentar cargar el último proyecto activo
+  const idActivo=cargarIdActivo();
+  if(idActivo){
+    const lista=cargarProyectos();
+    const p=lista.find(x=>x.id===idActivo);
+    if(p){
+      proyecto=p;
+      cargarUIProyecto();
+      showScreen('poly');
+      return;
+    }
+  }
+  // Si no hay activo, mostrar lista de proyectos
+  showScreen('proyectos');
+})();
