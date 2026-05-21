@@ -251,11 +251,16 @@ function cerrarNuevoModal(){
 function crearProyecto(){
   const nombre=document.getElementById('nuevo-nombre').value.trim();
   const tipo=document.getElementById('nuevo-tipo').value;
+  const az=readGMS('nuevo-az');
+  const k=parseInt(document.getElementById('nuevo-k').value)||30;
   if(!nombre){ showToast('⚠ Ingresa un nombre'); return; }
   proyecto=proyectoVacio(nombre,tipo);
+  proyecto.azInicial=isNaN(az)?0:az;
+  proyecto.toleranciaK=k;
   guardarProyectoActual();
   guardarIdActivo(proyecto.id);
   cerrarNuevoModal();
+  limpiarUI();
   cargarUIProyecto();
   showScreen('poly');
 }
@@ -265,6 +270,7 @@ function abrirProyecto(id){
   if(!p){ showToast('⚠ Proyecto no encontrado'); return; }
   proyecto=p;
   guardarIdActivo(id);
+  limpiarUI();
   cargarUIProyecto();
   showScreen('poly');
 }
@@ -282,6 +288,41 @@ function eliminarProyectoActual(){
   eliminarProyecto(proyecto.id);
   volverAProyectos();
 }
+function limpiarUI(){
+  // Limpiar poligonal
+  document.getElementById('point-form').style.display='none';
+  document.getElementById('points-section').style.display='none';
+  document.getElementById('results-section').style.display='none';
+  document.getElementById('adjustment-section').style.display='none';
+  document.getElementById('coords-section').style.display='none';
+  document.getElementById('points-list').innerHTML='';
+  document.getElementById('results-content').innerHTML='';
+  document.getElementById('coords-content').innerHTML='';
+  // Limpiar campos entrada
+  ['pt-from','pt-to'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  ['pt-di-b','pt-di','pt-hi','pt-hr','pt-hr-b'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  clearGMS('pt-zc-b'); clearGMS('pt-zc'); clearGMS('pt-beta');
+  // Limpiar amarre
+  document.getElementById('amarre-results').innerHTML='';
+  ['kp1-n','kp1-e','kp1-z','kp2-n','kp2-e','kp2-z'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  // Limpiar irradiación
+  document.getElementById('irrad-list').innerHTML='';
+  const azDisp=document.getElementById('ir-az-display');
+  if(azDisp){ azDisp.style.display='none'; azDisp.textContent=''; }
+  const shotCard=document.getElementById('ir-shot-card');
+  if(shotCard) shotCard.style.display='none';
+  ['ir-n','ir-e','ir-z','ir-hi','ir-vis-n','ir-vis-e'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  _mostrarAntes=false;
+}
+
 function volverAProyectos(){
   proyecto=null;
   guardarIdActivo(null);
@@ -299,10 +340,11 @@ function cargarUIProyecto(){
   writeGMS('az-ini',proyecto.azInicial||0);
   document.getElementById('tolerancia-k').value=proyecto.toleranciaK||30;
 
+  // Siempre mostrar formulario de puntos directamente
+  document.getElementById('poly-setup-card').style.display='none';
+  document.getElementById('point-form').style.display='block';
+  updateStationTitle();
   if(proyecto.points&&proyecto.points.length>0){
-    document.getElementById('poly-setup-card').style.display='none';
-    document.getElementById('point-form').style.display='block';
-    updateStationTitle();
     renderPointsList();
     if(proyecto.computed) renderResults();
     if(proyecto.adjustedCoords){
@@ -311,9 +353,6 @@ function cargarUIProyecto(){
         :ajustarTransito(proyecto.computed);
       renderCoordsSection(adj);
     }
-  } else {
-    document.getElementById('poly-setup-card').style.display='block';
-    document.getElementById('point-form').style.display='none';
   }
 
   // Amarre
@@ -353,21 +392,15 @@ function cargarUIProyecto(){
 // ═══════════════════════════════════════════════
 
 function iniciarPoly(){
+  // Ya no se usa — el proyecto se crea directo desde el modal
   if(!proyecto){ showToast('⚠ Selecciona o crea un proyecto'); return; }
-  proyecto.nombre=document.getElementById('poly-name-input').value.trim()||proyecto.nombre;
-  proyecto.tipo=document.getElementById('poly-type').value;
-  proyecto.azInicial=readGMS('az-ini');
-  proyecto.toleranciaK=parseInt(document.getElementById('tolerancia-k').value)||30;
-  guardarProyectoActual();
-  document.getElementById('proj-badge').textContent=proyecto.nombre+' ('+proyecto.tipo+')';
-  document.getElementById('poly-setup-card').style.display='none';
   document.getElementById('point-form').style.display='block';
   updateStationTitle();
 }
 
 function resetSetup(){
-  document.getElementById('poly-setup-card').style.display='block';
-  document.getElementById('point-form').style.display='none';
+  // Volver a lista de proyectos
+  volverAProyectos();
 }
 
 function updateStationTitle(){

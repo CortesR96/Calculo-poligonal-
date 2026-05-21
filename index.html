@@ -195,30 +195,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
 
     <!-- ═══ POLIGONAL ═══ -->
     <div class="screen" id="screen-poly">
-      <div class="card" id="poly-setup-card">
-        <div class="card-title">⬡ Configurar poligonal</div>
-        <div class="g2">
-          <div class="field"><label>NOMBRE</label><input type="text" id="poly-name-input" placeholder="PG-01" autocomplete="off"></div>
-          <div class="field"><label>TIPO</label>
-            <select id="poly-type">
-              <option value="cerrada">Cerrada</option>
-              <option value="abierta">Abierta</option>
-            </select>
-          </div>
-        </div>
-        <div class="field">
-          <label>AZIMUT INICIAL — opcional, solo si conoces el Az real del tramo anterior→inicio</label>
-          <div class="gms-row">
-            <input type="number" id="az-ini-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
-            <input type="number" id="az-ini-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
-            <input type="number" id="az-ini-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>TOLERANCIA K (seg) — K×√n | 10=alta / 30=normal / 60=rápida</label>
-          <input type="number" id="tolerancia-k" placeholder="30" value="30" step="1" inputmode="numeric">
-        </div>
-        <button class="btn btn-primary" onclick="iniciarPoly()">INICIAR POLIGONAL</button>
+      <div id="poly-setup-card" style="display:none">
+        <input type="hidden" id="poly-name-input">
+        <input type="hidden" id="poly-type">
+        <input type="hidden" id="az-ini-g">
+        <input type="hidden" id="az-ini-m">
+        <input type="hidden" id="az-ini-s">
+        <input type="hidden" id="tolerancia-k">
       </div>
 
       <div id="point-form" style="display:none">
@@ -493,12 +476,30 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
     <div class="modal-inner">
       <div class="card">
         <div class="card-title">+ Nueva poligonal</div>
-        <div class="field"><label>NOMBRE DEL PROYECTO</label><input type="text" id="nuevo-nombre" placeholder="PG-01" autocomplete="off"></div>
-        <div class="field"><label>TIPO</label>
-          <select id="nuevo-tipo">
-            <option value="cerrada">Cerrada</option>
-            <option value="abierta">Abierta</option>
-          </select>
+        <div class="g2">
+          <div class="field">
+            <label>NOMBRE</label>
+            <input type="text" id="nuevo-nombre" placeholder="PG-01" autocomplete="off">
+          </div>
+          <div class="field">
+            <label>TIPO</label>
+            <select id="nuevo-tipo">
+              <option value="cerrada">Cerrada</option>
+              <option value="abierta">Abierta</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>AZIMUT INICIAL — opcional, solo si conoces el Az real del tramo anterior→inicio</label>
+          <div class="gms-row">
+            <input type="number" id="nuevo-az-g" placeholder="0" min="0" max="359" inputmode="numeric"><span>°</span>
+            <input type="number" id="nuevo-az-m" placeholder="00" min="0" max="59" inputmode="numeric"><span>'</span>
+            <input type="number" id="nuevo-az-s" placeholder="00.0" min="0" max="59.9" step="0.1" inputmode="decimal"><span>"</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>TOLERANCIA K (seg) — K×√n | 10=alta / 30=normal / 60=rápida</label>
+          <input type="number" id="nuevo-k" placeholder="30" value="30" step="1" inputmode="numeric">
         </div>
         <div class="row-btns">
           <button class="btn btn-primary" style="flex:2" onclick="crearProyecto()">CREAR PROYECTO</button>
