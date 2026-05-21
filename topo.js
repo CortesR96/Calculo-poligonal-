@@ -66,7 +66,9 @@ function computePoligonal(points,azInicial,polyType,toleranciaK){
     const p=points[i];
     const DH=calcDH(p.DI,p.ZC);
     const DZ=calcDZ(p.DI,p.ZC,p.hi,p.hr);
-    az = i===0 ? azInicial : propagarAz(results[i-1].az, p.beta);
+    // Primer tramo: el AH leído ES el azimut asumido
+    // Siguientes: Az = Az_anterior + 180° - AH
+    az = i===0 ? p.beta : propagarAz(results[i-1].az, p.beta);
     const dN=calcDN(DH,az), dE=calcDE(DH,az);
     N+=dN; E+=dE; Z+=DZ; totalLen+=DH;
     results.push({...p,DH,DZ,az,dN,dE,N_acum:N,E_acum:E,Z_acum:Z});
@@ -78,7 +80,9 @@ function computePoligonal(points,azInicial,polyType,toleranciaK){
   if(polyType==='cerrada'&&points.length>=3){
     const n=points.length;
     const sumBeta=points.reduce((a,p)=>a+p.beta,0);
-    errAngular=sumBeta-(n-2)*180;
+    // Para poligonal cerrada con ángulos deflexión (ceros atrás):
+    // Teórico = (n+2)×180°
+    errAngular=sumBeta-(n+2)*180;
     tolAngular=(toleranciaK||30)*Math.sqrt(n)/3600;
     cierreAngularOk=Math.abs(errAngular)<=tolAngular;
   }
@@ -564,9 +568,10 @@ function renderResults(){
     ${c.errAngular!==null?`
     <div class="stat-row"><span class="stat-label">Error angular</span>
       <span class="stat-val" style="color:${c.cierreAngularOk?'var(--success)':'var(--danger)'}">
-        ${fmtGMS(c.errAngular)} ${c.cierreAngularOk?'✓':'✗'}
+        ${(c.errAngular>=0?'+':'')}${(c.errAngular*3600).toFixed(1)}" ${c.cierreAngularOk?'✓':'✗'}
       </span></div>
-    <div class="stat-row"><span class="stat-label">Tolerancia K√n</span><span class="stat-val">${fmtGMS(c.tolAngular)}</span></div>`:''}
+    <div class="stat-row"><span class="stat-label">Tolerancia K√n</span>
+      <span class="stat-val">± ${(c.tolAngular*3600).toFixed(1)}"</span></div>`:''}
     <div class="sep"></div>
     <div style="font-size:9px;color:var(--text3);margin-bottom:8px;letter-spacing:1px">TABLA DE AZIMUTES Y DISTANCIAS</div>
     <div style="overflow-x:auto">
