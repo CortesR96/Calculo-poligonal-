@@ -188,7 +188,8 @@ function showScreen(id){
   const nb=document.getElementById('nav-'+id);
   if(nb) nb.classList.add('active');
   if(id==='export') renderExportSummary();
-  if(id==='irradia') renderIrradList();
+  if(id==='irradia'){ renderIrradList(); refreshDropdowns(); }
+  if(id==='amarre') refreshDropdowns();
   if(id==='proyectos'){
     document.getElementById('main-nav').style.display='none';
     document.getElementById('btn-volver').style.display='none';
@@ -538,6 +539,7 @@ function renderPointsList(){
 function closePoly(){
   if(!proyecto||proyecto.points.length<2){ showToast('⚠ Mínimo 2 estaciones'); return; }
   proyecto.computed=computePoligonal(proyecto.points,proyecto.azInicial,proyecto.tipo,proyecto.toleranciaK);
+  _mostrarAntes=false;
   guardarProyectoActual();
   renderResults();
   setTimeout(()=>document.getElementById('results-section').scrollIntoView({behavior:'smooth'}),100);
@@ -620,20 +622,149 @@ function applyAdjustmentData(method,adj){
   proyecto.adjustedCoords={method,coords:adj.map(r=>({name:r.to,N:r.N_adj,E:r.E_adj,Z:r.Z_adj}))};
   guardarProyectoActual();
   renderCoordsSection(adj);
+  refreshDropdowns();
 }
-function renderCoordsSection(adj){
+function renderCoordsSection(adj, mostrarAntes){
+  if(mostrarAntes===undefined) mostrarAntes=false;
   const section=document.getElementById('coords-section');
   const content=document.getElementById('coords-content');
   section.style.display='block';
-  content.innerHTML=adj.map(r=>`
-    <div class="coord-box">
-      <div class="coord-name"><span>${r.to}</span><span style="font-size:9px;color:var(--text3);font-weight:400">${r.from}→${r.to}</span></div>
-      <div class="coord-vals">
-        <div class="coord-val"><div class="lbl">N (m)</div><div class="num">${fmt(r.N_adj,3)}</div></div>
-        <div class="coord-val"><div class="lbl">E (m)</div><div class="num">${fmt(r.E_adj,3)}</div></div>
-        <div class="coord-val"><div class="lbl">Z (m)</div><div class="num">${fmt(r.Z_adj,3)}</div></div>
-      </div>
-    </div>`).join('');
+
+  const last=adj[adj.length-1];
+  const errLin=Math.sqrt(last.N_adj*last.N_adj+last.E_adj*last.E_adj);
+  const precAdj=errLin>0.0001?Math.round(proyecto.computed.totalLen/errLin):999999;
+  const precOrig=proyecto.computed.precision;
+  const method=proyecto.adjustedCoords?proyecto.adjustedCoords.method:'bowditch';
+  const methodLabel=method==='bowditch'?'Bowditch':'Tránsito';
+
+  let html='';
+  // Encabezado precisión + toggle
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px">';
+  html+='<div>';
+  html+='<div style="font-size:10px;color:var(--text3)">SIN AJUSTE → CON AJUSTE ('+methodLabel+')</div>';
+  html+='<div style="font-size:13px;font-weight:700">';
+  html+='<span style="color:var(--warn)">1/'+precOrig.toLocaleString()+'</span>';
+  html+='<span style="color:var(--text3);margin:0 6px">→</span>';
+  html+='<span style="color:var(--success)">1/'+(precAdj>99999?'∞':precAdj.toLocaleString())+'</span>';
+  html+='</div></div>';
+  html+='<button class="btn btn-secondary btn-sm" onclick="toggleAntesDepues()">';
+  html+=(mostrarAntes?'VER AJUSTADO':'VER SIN AJUSTE');
+  html+='</button></div>';
+
+  // Puntos
+  adj.forEach(function(r){
+    const corrN=r.N_adj-r.N_acum;
+    const corrE=r.E_adj-r.E_acum;
+    const corrZ=r.Z_adj-r.Z_acum;
+    const Ns=mostrarAntes?r.N_acum:r.N_adj;
+    const Es=mostrarAntes?r.E_acum:r.E_adj;
+    const Zs=mostrarAntes?r.Z_acum:r.Z_adj;
+    html+='<div class="coord-box">';
+    html+='<div class="coord-name"><span>'+r.to+'</span>';
+    html+='<span style="font-size:9px;color:var(--text3);font-weight:400">'+(mostrarAntes?'SIN AJUSTE':'AJUSTADO')+'</span></div>';
+    html+='<div class="coord-vals">';
+    html+='<div class="coord-val"><div class="lbl">N (m)</div><div class="num">'+fmt(Ns,4)+'</div></div>';
+    html+='<div class="coord-val"><div class="lbl">E (m)</div><div class="num">'+fmt(Es,4)+'</div></div>';
+    html+='<div class="coord-val"><div class="lbl">Z (m)</div><div class="num">'+fmt(Zs,4)+'</div></div>';
+    html+='</div>';
+    if(!mostrarAntes){
+      html+='<div style="font-size:9px;color:var(--text3);margin-top:5px;display:flex;gap:10px">';
+      html+='<span>ΔN='+(corrN>=0?'+':'')+fmt(corrN,4)+'m</span>';
+      html+='<span>ΔE='+(corrE>=0?'+':'')+fmt(corrE,4)+'m</span>';
+      html+='<span>ΔZ='+(corrZ>=0?'+':'')+fmt(corrZ,4)+'m</span>';
+      html+='</div>';
+    }
+    html+='</div>';
+  });
+
+  content.innerHTML=html;
+}
+
+// Estado del toggle antes/después
+let _mostrarAntes=false;
+function toggleAntesDepues(){
+  _mostrarAntes=!_mostrarAntes;
+  if(!proyecto||!proyecto.computed||!proyecto.adjustedCoords) return;
+  const adj=proyecto.adjustedCoords.method==='bowditch'
+    ?ajustarBowditch(proyecto.computed)
+    :ajustarTransito(proyecto.computed);
+  renderCoordsSection(adj,_mostrarAntes);
+}
+
+
+// ─── Dropdowns de puntos ─────────────────────────
+function getPuntosPoligonal(){
+  if(!proyecto||!proyecto.points||proyecto.points.length===0) return [];
+  // Recopilar todos los nombres únicos (from y to)
+  const nombres=new Set();
+  proyecto.points.forEach(p=>{ nombres.add(p.from); nombres.add(p.to); });
+  // Si hay coordenadas ajustadas, incluir con coords
+  const coords={};
+  const src=proyecto.geoCoords||( proyecto.adjustedCoords?proyecto.adjustedCoords.coords:null);
+  if(src) src.forEach(p=>{ coords[p.name]={N:p.N,E:p.E,Z:p.Z}; });
+  return Array.from(nombres).map(n=>({name:n, coords:coords[n]||null}));
+}
+
+function fillDropdown(selectId, selected=''){
+  const sel=document.getElementById(selectId);
+  if(!sel) return;
+  const puntos=getPuntosPoligonal();
+  sel.innerHTML='<option value="">— Seleccionar punto —</option>';
+  puntos.forEach(p=>{
+    const opt=document.createElement('option');
+    opt.value=p.name;
+    opt.textContent=p.name+(p.coords?' ✓':'');
+    if(p.name===selected) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+
+function autoFillKP(num){
+  const sel=document.getElementById(`kp${num}-name`);
+  const nombre=sel.value;
+  if(!nombre) return;
+  const src=proyecto.geoCoords||(proyecto.adjustedCoords?proyecto.adjustedCoords.coords:null);
+  if(!src) return;
+  const p=src.find(x=>x.name===nombre);
+  if(!p) return;
+  document.getElementById(`kp${num}-n`).value=fmt(p.N,4);
+  document.getElementById(`kp${num}-e`).value=fmt(p.E,4);
+  document.getElementById(`kp${num}-z`).value=fmt(p.Z,4);
+}
+
+function autoFillStation(){
+  const nombre=document.getElementById('ir-st-name').value;
+  if(!nombre) return;
+  const src=proyecto.geoCoords||(proyecto.adjustedCoords?proyecto.adjustedCoords.coords:null);
+  if(!src) return;
+  const p=src.find(x=>x.name===nombre);
+  if(!p) return;
+  document.getElementById('ir-n').value=fmt(p.N,4);
+  document.getElementById('ir-e').value=fmt(p.E,4);
+  document.getElementById('ir-z').value=fmt(p.Z,4);
+}
+
+function autoFillVisado(){
+  const nombre=document.getElementById('ir-vis-name').value;
+  if(!nombre) return;
+  const src=proyecto.geoCoords||(proyecto.adjustedCoords?proyecto.adjustedCoords.coords:null);
+  if(!src) return;
+  const p=src.find(x=>x.name===nombre);
+  if(!p) return;
+  document.getElementById('ir-vis-n').value=fmt(p.N,4);
+  document.getElementById('ir-vis-e').value=fmt(p.E,4);
+}
+
+function refreshDropdowns(){
+  if(!proyecto) return;
+  const sel1=document.getElementById('kp1-name');
+  const sel2=document.getElementById('kp2-name');
+  const selSt=document.getElementById('ir-st-name');
+  const selVis=document.getElementById('ir-vis-name');
+  fillDropdown('kp1-name', sel1?sel1.value:'');
+  fillDropdown('kp2-name', sel2?sel2.value:'');
+  fillDropdown('ir-st-name', selSt?selSt.value:'');
+  fillDropdown('ir-vis-name', selVis?selVis.value:'');
 }
 
 // ═══════════════════════════════════════════════

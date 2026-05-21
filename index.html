@@ -354,24 +354,30 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         <div class="alert alert-info">Ingresa coordenadas de dos puntos conocidos. La app calcula el azimut real y transforma toda la poligonal.</div>
         <div class="sep"></div>
         <div class="card-title" style="color:var(--accent2);font-size:9px">PUNTO CONOCIDO 1 — inicio de poligonal</div>
-        <div class="g2">
-          <div class="field"><label>NOMBRE</label><input type="text" id="kp1-name" placeholder="P1" autocomplete="off"></div>
-          <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="kp1-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+        <div class="field">
+          <label>NOMBRE — selecciona un punto de la poligonal</label>
+          <select id="kp1-name" onchange="autoFillKP(1)">
+            <option value="">— Seleccionar punto —</option>
+          </select>
         </div>
         <div class="g2">
           <div class="field"><label>N (m)</label><input type="number" id="kp1-n" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
           <div class="field"><label>E (m)</label><input type="number" id="kp1-e" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
         </div>
+        <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="kp1-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
         <div class="sep"></div>
         <div class="card-title" style="color:var(--accent2);font-size:9px">PUNTO CONOCIDO 2 — fin de poligonal</div>
-        <div class="g2">
-          <div class="field"><label>NOMBRE</label><input type="text" id="kp2-name" placeholder="P2" autocomplete="off"></div>
-          <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="kp2-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+        <div class="field">
+          <label>NOMBRE — selecciona un punto de la poligonal</label>
+          <select id="kp2-name" onchange="autoFillKP(2)">
+            <option value="">— Seleccionar punto —</option>
+          </select>
         </div>
         <div class="g2">
           <div class="field"><label>N (m)</label><input type="number" id="kp2-n" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
           <div class="field"><label>E (m)</label><input type="number" id="kp2-e" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
         </div>
+        <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="kp2-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
         <button class="btn btn-primary mt12" onclick="calcAmarre()">CALCULAR AMARRE</button>
       </div>
       <div id="amarre-results"></div>
@@ -383,19 +389,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:13
         <div class="card-title">◎ Punto de armada</div>
         <div class="alert alert-info">Ingresa estación y punto visado (donde pusiste ceros). El azimut se calcula automáticamente.</div>
         <div class="card-title" style="color:var(--accent2);font-size:9px;margin-top:4px">ESTACIÓN — donde está la máquina</div>
-        <div class="g2">
-          <div class="field"><label>NOMBRE</label><input type="text" id="ir-st-name" placeholder="P1" autocomplete="off"></div>
-          <div class="field"><label>HI (m)</label><input type="number" id="ir-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
+        <div class="field">
+          <label>NOMBRE — selecciona punto de la poligonal</label>
+          <select id="ir-st-name" onchange="autoFillStation()">
+            <option value="">— Seleccionar punto —</option>
+          </select>
         </div>
         <div class="g2">
           <div class="field"><label>N (m)</label><input type="number" id="ir-n" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
           <div class="field"><label>E (m)</label><input type="number" id="ir-e" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
         </div>
-        <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="ir-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+        <div class="g2">
+          <div class="field"><label>Z (m.s.n.m)</label><input type="number" id="ir-z" placeholder="0.000" step="0.001" inputmode="decimal"></div>
+          <div class="field"><label>HI (m)</label><input type="number" id="ir-hi" placeholder="1.500" step="0.001" value="1.500" inputmode="decimal"></div>
+        </div>
         <div class="sep"></div>
         <div class="card-title" style="color:var(--accent2);font-size:9px">PUNTO VISADO — donde pusiste ceros</div>
-        <div class="g2">
-          <div class="field"><label>NOMBRE</label><input type="text" id="ir-vis-name" placeholder="P2" autocomplete="off"></div>
+        <div class="field">
+          <label>NOMBRE — selecciona punto de la poligonal</label>
+          <select id="ir-vis-name" onchange="autoFillVisado()">
+            <option value="">— Seleccionar punto —</option>
+          </select>
         </div>
         <div class="g2">
           <div class="field"><label>N (m)</label><input type="number" id="ir-vis-n" placeholder="1000000.000" step="0.001" inputmode="decimal"></div>
