@@ -298,14 +298,19 @@ function limpiarUI(){
   document.getElementById('points-list').innerHTML='';
   document.getElementById('results-content').innerHTML='';
   document.getElementById('coords-content').innerHTML='';
-  // Limpiar campos entrada
+  // Limpiar campos entrada poligonal
   ['pt-from','pt-to'].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
-  ['pt-di-b','pt-di','pt-hi','pt-hr','pt-hr-b'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value='';
-  });
+  const ptDiB=document.getElementById('pt-di-b'); if(ptDiB) ptDiB.value='';
+  const ptDi=document.getElementById('pt-di'); if(ptDi) ptDi.value='';
+  const ptHi=document.getElementById('pt-hi'); if(ptHi) ptHi.value='1.500';
+  const ptHr=document.getElementById('pt-hr'); if(ptHr) ptHr.value='1.500';
+  const ptHrB=document.getElementById('pt-hr-b'); if(ptHrB) ptHrB.value='1.500';
   clearGMS('pt-zc-b'); clearGMS('pt-zc'); clearGMS('pt-beta');
+  // Título estación
+  const stTitle=document.getElementById('station-title');
+  if(stTitle) stTitle.textContent='📍 Estación 1';
   // Limpiar amarre
   document.getElementById('amarre-results').innerHTML='';
   ['kp1-n','kp1-e','kp1-z','kp2-n','kp2-e','kp2-z'].forEach(id=>{
@@ -331,18 +336,22 @@ function volverAProyectos(){
 
 function cargarUIProyecto(){
   if(!proyecto) return;
-  // Badge
+  // Badge header
   document.getElementById('proj-badge').textContent=proyecto.nombre+' ('+proyecto.tipo+')';
   document.getElementById('btn-volver').style.display='inline-block';
-  // Setup form
-  document.getElementById('poly-name-input').value=proyecto.nombre;
-  document.getElementById('poly-type').value=proyecto.tipo;
-  writeGMS('az-ini',proyecto.azInicial||0);
-  document.getElementById('tolerancia-k').value=proyecto.toleranciaK||30;
 
-  // Siempre mostrar formulario de puntos directamente
+  // Mostrar formulario de puntos directamente
   document.getElementById('poly-setup-card').style.display='none';
   document.getElementById('point-form').style.display='block';
+
+  // Resetear HI/HR a valores por defecto si están vacíos
+  const hiEl=document.getElementById('pt-hi');
+  const hrEl=document.getElementById('pt-hr');
+  const hrBEl=document.getElementById('pt-hr-b');
+  if(hiEl&&!hiEl.value) hiEl.value='1.500';
+  if(hrEl&&!hrEl.value) hrEl.value='1.500';
+  if(hrBEl&&!hrBEl.value) hrBEl.value='1.500';
+
   updateStationTitle();
   if(proyecto.points&&proyecto.points.length>0){
     renderPointsList();
